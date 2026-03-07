@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NXVNC - Web Remote Desktop</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Connection Panel -->
+    <div id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <h1>NXVNC</h1>
+            <span class="subtitle">Web Remote Desktop</span>
+        </div>
+
+        <div class="connect-form">
+            <h2>New Connection</h2>
+            <div class="form-group">
+                <label for="conn-name">Name</label>
+                <input type="text" id="conn-name" placeholder="My Server">
+            </div>
+            <div class="form-group">
+                <label for="conn-host">Host</label>
+                <input type="text" id="conn-host" placeholder="192.168.1.100">
+            </div>
+            <div class="form-group">
+                <label for="conn-port">Port</label>
+                <input type="number" id="conn-port" value="5900" placeholder="5900">
+            </div>
+            <div class="form-group">
+                <label for="conn-password">Password</label>
+                <input type="password" id="conn-password" placeholder="VNC password">
+            </div>
+            <div class="form-group">
+                <label for="conn-protocol">Protocol</label>
+                <select id="conn-protocol">
+                    <option value="vnc">VNC</option>
+                </select>
+            </div>
+            <div class="form-actions">
+                <button id="btn-connect" class="btn btn-primary">Connect</button>
+                <button id="btn-save" class="btn btn-secondary">Save</button>
+            </div>
+        </div>
+
+        <div class="saved-connections">
+            <h2>Saved Connections</h2>
+            <div id="connections-list" class="connections-list">
+                <p class="empty-state">No saved connections</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toggle sidebar button -->
+    <button id="btn-toggle-sidebar" class="toggle-sidebar" title="Toggle sidebar">&#9776;</button>
+
+    <!-- Toolbar -->
+    <div id="toolbar" class="toolbar hidden">
+        <div class="toolbar-left">
+            <span id="connection-info" class="connection-info"></span>
+        </div>
+        <div class="toolbar-right">
+            <button id="btn-keys" class="toolbar-btn" title="Send special keys">Keys</button>
+            <button id="btn-clipboard" class="toolbar-btn" title="Clipboard">Clipboard</button>
+            <button id="btn-fullscreen" class="toolbar-btn" title="Fullscreen">Fullscreen</button>
+            <button id="btn-scale" class="toolbar-btn" title="Scale to fit">Scale</button>
+            <button id="btn-disconnect" class="toolbar-btn btn-danger" title="Disconnect">Disconnect</button>
+        </div>
+    </div>
+
+    <!-- VNC Canvas Container -->
+    <div id="vnc-container" class="vnc-container">
+        <div id="vnc-status" class="vnc-status">
+            <p>Enter connection details and click Connect</p>
+        </div>
+        <div id="vnc-screen" class="vnc-screen hidden"></div>
+    </div>
+
+    <!-- Clipboard Modal -->
+    <div id="clipboard-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Clipboard</h3>
+                <button class="modal-close" data-modal="clipboard-modal">&times;</button>
+            </div>
+            <textarea id="clipboard-text" rows="6" placeholder="Paste text here to send to remote, or copy text from remote"></textarea>
+            <div class="modal-actions">
+                <button id="btn-clipboard-send" class="btn btn-primary">Send to Remote</button>
+                <button id="btn-clipboard-clear" class="btn btn-secondary">Clear</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Special Keys Modal -->
+    <div id="keys-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Send Special Keys</h3>
+                <button class="modal-close" data-modal="keys-modal">&times;</button>
+            </div>
+            <div class="special-keys">
+                <button class="key-btn" data-keys="ctrl+alt+del">Ctrl+Alt+Del</button>
+                <button class="key-btn" data-keys="ctrl+alt+f1">Ctrl+Alt+F1</button>
+                <button class="key-btn" data-keys="ctrl+alt+f2">Ctrl+Alt+F2</button>
+                <button class="key-btn" data-keys="tab">Tab</button>
+                <button class="key-btn" data-keys="escape">Escape</button>
+                <button class="key-btn" data-keys="ctrl+c">Ctrl+C</button>
+                <button class="key-btn" data-keys="ctrl+v">Ctrl+V</button>
+                <button class="key-btn" data-keys="ctrl+z">Ctrl+Z</button>
+                <button class="key-btn" data-keys="super">Super (Win)</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
