@@ -1,19 +1,79 @@
 const WebSocket = require('ws');
 const net = require('net');
 const url = require('url');
+const { verifyToken } = require('./auth/auth');
+const { logAudit } = require('./audit/audit');
+const { checkLimits, isFreeMode, FREE_SESSION_LIMIT_MS, FREE_COOLDOWN_MS } = require('./license/license');
 
 class WebSocketProxy {
     constructor(server) {
         this.wss = new WebSocket.Server({ noServer: true });
+        this.wssCompressed = null;
         this.activeConnections = new Map();
+        this.activeUsers = new Set();
+        // Track cooldown per user: userId -> cooldownExpiresAt (timestamp)
+        this.cooldowns = new Map();
 
         server.on('upgrade', (request, socket, head) => {
-            const pathname = url.parse(request.url, true).pathname;
+            const parsed = url.parse(request.url, true);
 
-            // Expected path: /websockify?host=x&port=y
-            if (pathname === '/websockify') {
-                this.wss.handleUpgrade(request, socket, head, (ws) => {
-                    this.handleConnection(ws, request);
+            if (parsed.pathname === '/websockify') {
+                // Authenticate WebSocket upgrade
+                const token = parsed.query.token;
+                if (!token) {
+                    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                    socket.destroy();
+                    return;
+                }
+
+                let authResult;
+                try {
+                    authResult = verifyToken(token);
+                } catch (e) {
+                    authResult = null;
+                }
+
+                if (!authResult || !authResult.user) {
+                    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                    socket.destroy();
+                    return;
+                }
+
+                const user = authResult.user;
+
+                // Check license limits
+                const limits = checkLimits(this.activeUsers.size, this.activeConnections.size);
+                if (!limits.allowed) {
+                    socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+                    socket.destroy();
+                    return;
+                }
+
+                // Free mode: check cooldown
+                if (isFreeMode()) {
+                    const cooldownUntil = this.cooldowns.get(user.id);
+                    if (cooldownUntil && Date.now() < cooldownUntil) {
+                        const remaining = Math.ceil((cooldownUntil - Date.now()) / 1000);
+                        socket.write(`HTTP/1.1 429 Too Many Requests\r\nX-NXVNC-Cooldown: ${remaining}\r\n\r\n`);
+                        socket.destroy();
+                        return;
+                    }
+                }
+
+                const useCompression = parsed.query.compress === '1';
+                if (useCompression && !this.wssCompressed) {
+                    this.wssCompressed = new WebSocket.Server({
+                        noServer: true,
+                        perMessageDeflate: {
+                            zlibDeflateOptions: { level: 6 },
+                            threshold: 128,
+                        }
+                    });
+                }
+
+                const targetWss = useCompression && this.wssCompressed ? this.wssCompressed : this.wss;
+                targetWss.handleUpgrade(request, socket, head, (ws) => {
+                    this.handleConnection(ws, request, user);
                 });
             } else {
                 socket.destroy();
@@ -21,7 +81,7 @@ class WebSocketProxy {
         });
     }
 
-    handleConnection(ws, request) {
+    handleConnection(ws, request, user) {
         const params = url.parse(request.url, true).query;
         const targetHost = params.host;
         const targetPort = parseInt(params.port, 10);
@@ -31,14 +91,44 @@ class WebSocketProxy {
             return;
         }
 
-        console.log(`[proxy] Connecting to ${targetHost}:${targetPort}`);
+        const isViewer = user.role === 'viewer';
+        const freeMode = isFreeMode();
+
+        console.log(`[proxy] ${user.username} (${user.role}) connecting to ${targetHost}:${targetPort}${freeMode ? ' [FREE MODE]' : ''}`);
 
         const tcp = net.createConnection(targetPort, targetHost, () => {
             console.log(`[proxy] TCP connected to ${targetHost}:${targetPort}`);
         });
 
         const connectionId = `${targetHost}:${targetPort}:${Date.now()}`;
-        this.activeConnections.set(connectionId, { ws, tcp, targetHost, targetPort });
+        this.activeConnections.set(connectionId, { ws, tcp, targetHost, targetPort, user, sessionTimer: null });
+        this.activeUsers.add(user.id);
+
+        logAudit(user.id, 'vnc_connect', `${targetHost}:${targetPort}`, null, { role: user.role, freeMode });
+
+        // Send metadata to client
+        const meta = { type: 'nxvnc_meta', freeMode };
+        if (isViewer) meta.viewOnly = true;
+        if (freeMode) {
+            meta.sessionLimitMs = FREE_SESSION_LIMIT_MS;
+            meta.cooldownMs = FREE_COOLDOWN_MS;
+        }
+        // Send meta as text before VNC binary data starts
+        ws.send(JSON.stringify(meta));
+
+        // Free mode: set server-side session timer
+        if (freeMode) {
+            const timer = setTimeout(() => {
+                console.log(`[proxy] Free session expired for ${user.username} at ${targetHost}:${targetPort}`);
+                // Set cooldown
+                this.cooldowns.set(user.id, Date.now() + FREE_COOLDOWN_MS);
+                // Close with a specific code so client knows it's a session limit
+                ws.close(4001, 'Free session time limit reached');
+            }, FREE_SESSION_LIMIT_MS);
+
+            const conn = this.activeConnections.get(connectionId);
+            if (conn) conn.sessionTimer = timer;
+        }
 
         // TCP -> WebSocket
         tcp.on('data', (data) => {
@@ -54,7 +144,6 @@ class WebSocketProxy {
             }
         });
 
-        // Cleanup on TCP close/error
         tcp.on('close', () => {
             console.log(`[proxy] TCP connection closed for ${targetHost}:${targetPort}`);
             this.cleanup(connectionId);
@@ -66,15 +155,15 @@ class WebSocketProxy {
             this.cleanup(connectionId);
         });
 
-        // Cleanup on WebSocket close/error
-        ws.on('close', () => {
-            console.log(`[proxy] WebSocket closed for ${targetHost}:${targetPort}`);
+        ws.on('close', (code) => {
+            console.log(`[proxy] WebSocket closed for ${targetHost}:${targetPort} (code: ${code})`);
+            logAudit(user.id, 'vnc_disconnect', `${targetHost}:${targetPort}`, null, { code });
             tcp.destroy();
             this.cleanup(connectionId);
         });
 
         ws.on('error', (err) => {
-            console.error(`[proxy] WebSocket error:`, err.message);
+            console.error('[proxy] WebSocket error:', err.message);
             tcp.destroy();
             this.cleanup(connectionId);
         });
@@ -83,14 +172,31 @@ class WebSocketProxy {
     cleanup(connectionId) {
         const conn = this.activeConnections.get(connectionId);
         if (conn) {
+            // Clear session timer
+            if (conn.sessionTimer) {
+                clearTimeout(conn.sessionTimer);
+                conn.sessionTimer = null;
+            }
+
             if (conn.ws.readyState === WebSocket.OPEN) conn.ws.close();
             if (!conn.tcp.destroyed) conn.tcp.destroy();
+
+            const userId = conn.user.id;
             this.activeConnections.delete(connectionId);
+
+            const stillActive = [...this.activeConnections.values()].some(c => c.user.id === userId);
+            if (!stillActive) {
+                this.activeUsers.delete(userId);
+            }
         }
     }
 
     getActiveCount() {
         return this.activeConnections.size;
+    }
+
+    getActiveUserCount() {
+        return this.activeUsers.size;
     }
 }
 

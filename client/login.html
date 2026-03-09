@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NXVNC - Login</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="login-body">
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1>NXVNC</h1>
+                <span class="subtitle">Web Remote Desktop</span>
+            </div>
+            <form id="login-form" class="login-form">
+                <div class="form-group">
+                    <label for="login-username">Username</label>
+                    <input type="text" id="login-username" placeholder="admin" autocomplete="username" autofocus required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" placeholder="Password" autocomplete="current-password" required>
+                </div>
+                <div id="login-error" class="login-error hidden"></div>
+                <button type="submit" class="btn btn-primary login-btn">Sign In</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Change Password Modal (shown when must_change_password) -->
+    <div id="change-pw-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Change Password Required</h3>
+            </div>
+            <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">
+                You must change your password before continuing.
+            </p>
+            <form id="change-pw-form">
+                <div class="form-group">
+                    <label for="change-pw-current">Current Password</label>
+                    <input type="password" id="change-pw-current" required>
+                </div>
+                <div class="form-group">
+                    <label for="change-pw-new">New Password (min 8 chars)</label>
+                    <input type="password" id="change-pw-new" minlength="8" required>
+                </div>
+                <div class="form-group">
+                    <label for="change-pw-confirm">Confirm New Password</label>
+                    <input type="password" id="change-pw-confirm" minlength="8" required>
+                </div>
+                <div id="change-pw-error" class="login-error hidden"></div>
+                <button type="submit" class="btn btn-primary login-btn">Change Password</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/login.js"></script>
+</body>
+</html>

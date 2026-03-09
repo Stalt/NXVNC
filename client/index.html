@@ -10,8 +10,15 @@
     <!-- Connection Panel -->
     <div id="sidebar" class="sidebar">
         <div class="sidebar-header">
-            <h1>NXVNC</h1>
-            <span class="subtitle">Web Remote Desktop</span>
+            <div class="sidebar-header-top">
+                <div>
+                    <h1>NXVNC</h1>
+                    <span class="subtitle">Web Remote Desktop</span>
+                </div>
+                <button id="btn-logout" class="btn-logout" title="Sign out">Logout</button>
+            </div>
+            <div id="user-info" class="user-info"></div>
+            <button id="btn-admin" class="btn btn-secondary btn-admin hidden">Admin Panel</button>
         </div>
 
         <div class="connect-form">
@@ -41,6 +48,133 @@
             <div class="form-actions">
                 <button id="btn-connect" class="btn btn-primary">Connect</button>
                 <button id="btn-save" class="btn btn-secondary">Save</button>
+            </div>
+        </div>
+
+        <!-- Settings -->
+        <div class="settings-panel">
+            <button class="settings-toggle" id="settings-toggle">
+                <span>Settings</span>
+                <span class="settings-arrow" id="settings-arrow">&#9662;</span>
+            </button>
+
+            <div id="settings-body" class="settings-body hidden">
+                <!-- Display & Quality -->
+                <div class="settings-section">
+                    <h3 class="settings-section-title">Display &amp; Quality</h3>
+                    <div class="form-group">
+                        <label for="set-quality">Quality Level: <span id="set-quality-val">6</span></label>
+                        <input type="range" id="set-quality" min="0" max="9" value="6">
+                    </div>
+                    <div class="form-group">
+                        <label for="set-compression">Compression Level: <span id="set-compression-val">2</span></label>
+                        <input type="range" id="set-compression" min="0" max="9" value="2">
+                    </div>
+                    <div class="form-group">
+                        <label for="set-color-depth">Color Depth</label>
+                        <select id="set-color-depth">
+                            <option value="24">24-bit True Color</option>
+                            <option value="8">8-bit (Low Bandwidth)</option>
+                        </select>
+                    </div>
+                    <div class="form-group form-group-toggle">
+                        <label for="set-video-streaming">Prefer H.264 (if supported)</label>
+                        <input type="checkbox" id="set-video-streaming" checked>
+                    </div>
+                </div>
+
+                <!-- Scaling & Layout -->
+                <div class="settings-section">
+                    <h3 class="settings-section-title">Scaling &amp; Layout</h3>
+                    <div class="form-group">
+                        <label for="set-scale-mode">Scale Mode</label>
+                        <select id="set-scale-mode">
+                            <option value="fit">Scale to Fit</option>
+                            <option value="manual">Manual Zoom</option>
+                            <option value="none">None (1:1)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="zoom-group" style="display:none">
+                        <label for="set-zoom">Zoom: <span id="set-zoom-val">100</span>%</label>
+                        <input type="range" id="set-zoom" min="25" max="200" step="5" value="100">
+                    </div>
+                    <div class="form-group form-group-toggle">
+                        <label for="set-resize-session">Resize Remote to Window</label>
+                        <input type="checkbox" id="set-resize-session">
+                    </div>
+                    <div class="form-group form-group-toggle">
+                        <label for="set-clip-viewport">Clip Viewport (Scrollbars)</label>
+                        <input type="checkbox" id="set-clip-viewport">
+                    </div>
+                    <div class="form-group form-group-toggle">
+                        <label for="set-lock-aspect">Lock Aspect Ratio</label>
+                        <input type="checkbox" id="set-lock-aspect" checked>
+                    </div>
+                </div>
+
+                <!-- Performance -->
+                <div class="settings-section">
+                    <h3 class="settings-section-title">Performance</h3>
+                    <div class="form-group">
+                        <label for="set-framerate">Frame Rate Limit</label>
+                        <select id="set-framerate">
+                            <option value="0">Unlimited</option>
+                            <option value="60">60 FPS</option>
+                            <option value="30">30 FPS</option>
+                            <option value="15">15 FPS</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="set-cursor">Cursor Mode</label>
+                        <select id="set-cursor">
+                            <option value="local">Local (Fast)</option>
+                            <option value="remote">Remote (Accurate)</option>
+                            <option value="hidden">Hidden</option>
+                        </select>
+                    </div>
+                    <div class="form-group form-group-toggle">
+                        <label for="set-shared">Shared Session</label>
+                        <input type="checkbox" id="set-shared" checked>
+                    </div>
+                    <div class="form-group form-group-toggle">
+                        <label for="set-reconnect">Auto-Reconnect</label>
+                        <input type="checkbox" id="set-reconnect">
+                    </div>
+                    <div class="form-group" id="reconnect-delay-group" style="display:none">
+                        <label for="set-reconnect-delay">Reconnect Delay (seconds)</label>
+                        <input type="number" id="set-reconnect-delay" min="1" max="60" value="3">
+                    </div>
+                </div>
+
+                <!-- Input -->
+                <div class="settings-section">
+                    <h3 class="settings-section-title">Input</h3>
+                    <div class="form-group form-group-toggle">
+                        <label for="set-view-only">View Only</label>
+                        <input type="checkbox" id="set-view-only">
+                    </div>
+                    <div class="form-group form-group-toggle">
+                        <label for="set-keyboard-grab">Keyboard Grab</label>
+                        <input type="checkbox" id="set-keyboard-grab">
+                    </div>
+                    <div class="form-group form-group-toggle">
+                        <label for="set-touch-mode">Touch Input Mode</label>
+                        <input type="checkbox" id="set-touch-mode">
+                    </div>
+                </div>
+
+                <!-- Connection -->
+                <div class="settings-section">
+                    <h3 class="settings-section-title">Connection</h3>
+                    <div class="form-group">
+                        <label for="set-timeout">Connection Timeout (seconds)</label>
+                        <input type="number" id="set-timeout" min="5" max="120" value="30">
+                    </div>
+                    <div class="form-group form-group-toggle">
+                        <label for="set-ws-compression">WebSocket Compression</label>
+                        <input type="checkbox" id="set-ws-compression">
+                    </div>
+                </div>
             </div>
         </div>
 

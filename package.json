@@ -6,13 +6,25 @@
     "start": "node server/index.js",
     "dev": "node --watch server/index.js"
   },
-  "keywords": ["vnc", "remote-desktop", "websocket", "html5"],
+  "keywords": [
+    "vnc",
+    "remote-desktop",
+    "websocket",
+    "html5"
+  ],
   "author": "",
   "license": "MIT",
   "description": "Web-based remote desktop client (VNC) running in Chromium browsers with no plugins",
   "dependencies": {
-    "@novnc/novnc": "^1.6.0",
+    "@novnc/novnc": "github:novnc/noVNC",
+    "bcrypt": "^6.0.0",
+    "better-sqlite3": "^12.6.2",
+    "cookie-parser": "^1.4.7",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.3.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "uuid": "^13.0.0",
     "ws": "^8.19.0"
   }
 }

@@ -1,0 +1,13 @@
+{
+  "port": 6080,
+  "dbPath": "./data/nxvnc.db",
+  "jwtSecret": "",
+  "jwtExpiry": "8h",
+  "masterKey": "",
+  "tlsCert": "",
+  "tlsKey": "",
+  "rateLimitWindow": 900000,
+  "rateLimitMax": 10,
+  "apiRateLimitMax": 100,
+  "apiRateLimitWindow": 60000
+}
