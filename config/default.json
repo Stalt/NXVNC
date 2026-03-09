@@ -9,5 +9,6 @@
   "rateLimitWindow": 900000,
   "rateLimitMax": 10,
   "apiRateLimitMax": 100,
-  "apiRateLimitWindow": 60000
+  "apiRateLimitWindow": 60000,
+  "trustProxy": false
 }

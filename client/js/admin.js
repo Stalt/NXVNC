@@ -51,6 +51,9 @@ function createAdminPanel() {
                 </div>
                 <!-- Connections Tab -->
                 <div class="admin-tab-content" id="tab-connections">
+                    <div class="admin-toolbar">
+                        <button class="btn btn-primary" id="btn-add-connection">Add Connection</button>
+                    </div>
                     <div id="admin-connections-container"></div>
                 </div>
                 <!-- License Tab -->
@@ -109,9 +112,157 @@ function bindAdminEvents() {
     });
 
     document.getElementById('btn-add-user').addEventListener('click', showAddUserDialog);
+    document.getElementById('btn-add-connection').addEventListener('click', showAddConnectionDialog);
     document.getElementById('btn-upload-license').addEventListener('click', uploadLicense);
     document.getElementById('btn-refresh-audit').addEventListener('click', () => loadAuditLog());
     document.getElementById('audit-filter-action').addEventListener('change', () => loadAuditLog());
+
+    // Modal form handlers
+    document.getElementById('add-user-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('add-user-username').value.trim();
+        const password = document.getElementById('add-user-password').value;
+        const role = document.getElementById('add-user-role').value;
+        const errorEl = document.getElementById('add-user-error');
+
+        if (password.length < 8) {
+            errorEl.textContent = 'Password must be at least 8 characters';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+
+        const res = await authFetch('/api/v1/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password, role }),
+        });
+        if (res.ok) {
+            document.getElementById('add-user-modal').classList.add('hidden');
+            showToast('User created successfully');
+            loadUsers();
+        } else {
+            const d = await res.json();
+            errorEl.textContent = d.error || 'Failed to create user';
+            errorEl.classList.remove('hidden');
+        }
+    });
+
+    document.getElementById('edit-user-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('edit-user-id').value;
+        const role = document.getElementById('edit-user-role').value;
+        const displayName = document.getElementById('edit-user-display').value.trim();
+
+        await authFetch(`/api/v1/users/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role, displayName }),
+        });
+        document.getElementById('edit-user-modal').classList.add('hidden');
+        showToast('User updated successfully');
+        loadUsers();
+    });
+
+    document.getElementById('reset-pw-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('reset-pw-user-id').value;
+        const newPassword = document.getElementById('reset-pw-input').value;
+        const errorEl = document.getElementById('reset-pw-error');
+
+        if (newPassword.length < 8) {
+            errorEl.textContent = 'Password must be at least 8 characters';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+
+        await authFetch(`/api/v1/users/${id}/reset-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ newPassword }),
+        });
+        document.getElementById('reset-pw-modal').classList.add('hidden');
+        showToast('Password reset. User will be required to change it on next login.');
+    });
+
+    // Connection form handlers
+    document.getElementById('add-conn-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('add-conn-name').value.trim();
+        const host = document.getElementById('add-conn-host').value.trim();
+        const port = document.getElementById('add-conn-port').value.trim();
+        const password = document.getElementById('add-conn-password').value;
+        const errorEl = document.getElementById('add-conn-error');
+
+        if (!name || !host || !port) {
+            errorEl.textContent = 'Name, host and port are required';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+
+        const res = await authFetch('/api/v1/connections', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, host, port, protocol: 'vnc', password }),
+        });
+        if (res.ok) {
+            document.getElementById('add-conn-modal').classList.add('hidden');
+            showToast('Connection created');
+            loadAllConnections();
+            if (appRef) appRef.loadConnections();
+        } else {
+            const d = await res.json();
+            errorEl.textContent = d.error || 'Failed to create connection';
+            errorEl.classList.remove('hidden');
+        }
+    });
+
+    document.getElementById('edit-conn-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('edit-conn-id').value;
+        const name = document.getElementById('edit-conn-name').value.trim();
+        const host = document.getElementById('edit-conn-host').value.trim();
+        const port = document.getElementById('edit-conn-port').value.trim();
+        const password = document.getElementById('edit-conn-password').value;
+
+        const body = { name, host, port };
+        if (password) body.password = password;
+
+        await authFetch(`/api/v1/connections/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        document.getElementById('edit-conn-modal').classList.add('hidden');
+        showToast('Connection updated');
+        loadAllConnections();
+        if (appRef) appRef.loadConnections();
+    });
+
+    document.getElementById('assign-conn-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('assign-conn-id').value;
+        const checkboxes = document.querySelectorAll('#assign-conn-users input[type="checkbox"]:checked');
+        const userIds = Array.from(checkboxes).map(cb => parseInt(cb.value, 10));
+
+        await authFetch(`/api/v1/connections/${id}/share`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userIds }),
+        });
+        document.getElementById('assign-conn-modal').classList.add('hidden');
+        showToast('Connection assignment updated');
+        loadAllConnections();
+    });
+
+    // Close modal buttons (for new modals)
+    document.querySelectorAll('[data-modal]').forEach(btn => {
+        if (btn.classList.contains('modal-close') || btn.tagName === 'BUTTON') {
+            btn.addEventListener('click', () => {
+                const modalId = btn.dataset.modal;
+                if (modalId) document.getElementById(modalId).classList.add('hidden');
+            });
+        }
+    });
 }
 
 // --- Users ---
@@ -154,64 +305,74 @@ window._adminEditUser = async (id) => {
     if (!res.ok) return;
     const user = await res.json();
 
-    const role = prompt(`Role for ${user.username} (admin/operator/viewer):`, user.role);
-    if (!role || !['admin', 'operator', 'viewer'].includes(role)) return;
-
-    const displayName = prompt('Display name:', user.display_name || '');
-
-    await authFetch(`/api/v1/users/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, displayName }),
-    });
-    loadUsers();
+    document.getElementById('edit-user-id').value = id;
+    document.getElementById('edit-user-title').textContent = user.username;
+    document.getElementById('edit-user-role').value = user.role;
+    document.getElementById('edit-user-display').value = user.display_name || '';
+    document.getElementById('edit-user-modal').classList.remove('hidden');
 };
 
 window._adminResetPw = async (id) => {
-    const newPassword = prompt('Enter new password (min 8 chars):');
-    if (!newPassword || newPassword.length < 8) {
-        alert('Password must be at least 8 characters');
-        return;
-    }
-
-    await authFetch(`/api/v1/users/${id}/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newPassword }),
-    });
-    alert('Password reset. User will be required to change it on next login.');
+    document.getElementById('reset-pw-user-id').value = id;
+    document.getElementById('reset-pw-input').value = '';
+    document.getElementById('reset-pw-error').classList.add('hidden');
+    document.getElementById('reset-pw-modal').classList.remove('hidden');
 };
 
 window._adminDeleteUser = async (id) => {
-    if (!confirm('Disable this user?')) return;
-    await authFetch(`/api/v1/users/${id}`, { method: 'DELETE' });
-    loadUsers();
+    showConfirm('Disable User', 'Are you sure you want to disable this user?', async () => {
+        await authFetch(`/api/v1/users/${id}`, { method: 'DELETE' });
+        loadUsers();
+    });
 };
 
 function showAddUserDialog() {
-    const username = prompt('Username:');
-    if (!username) return;
-    const password = prompt('Password (min 8 chars):');
-    if (!password || password.length < 8) {
-        alert('Password must be at least 8 characters');
-        return;
-    }
-    const role = prompt('Role (admin/operator/viewer):', 'operator');
-    if (!role || !['admin', 'operator', 'viewer'].includes(role)) return;
+    document.getElementById('add-user-form').reset();
+    document.getElementById('add-user-error').classList.add('hidden');
+    document.getElementById('add-user-modal').classList.remove('hidden');
+}
 
-    authFetch('/api/v1/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, role }),
-    }).then(res => {
-        if (res.ok) loadUsers();
-        else res.json().then(d => alert(d.error || 'Failed'));
-    });
+function showConfirm(title, message, onConfirm) {
+    document.getElementById('confirm-modal-title').textContent = title;
+    document.getElementById('confirm-modal-message').textContent = message;
+    document.getElementById('confirm-modal').classList.remove('hidden');
+    const yesBtn = document.getElementById('confirm-modal-yes');
+    const handler = () => {
+        yesBtn.removeEventListener('click', handler);
+        document.getElementById('confirm-modal').classList.add('hidden');
+        onConfirm();
+    };
+    yesBtn.replaceWith(yesBtn.cloneNode(true));
+    document.getElementById('confirm-modal-yes').addEventListener('click', handler);
+}
+
+export function showToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => { toast.classList.add('toast-fade'); }, 2500);
+    setTimeout(() => { toast.remove(); }, 3000);
 }
 
 // --- Connections ---
 
+let cachedUsers = [];
+
+async function fetchUsers() {
+    const res = await authFetch('/api/v1/users');
+    if (res.ok) cachedUsers = await res.json();
+    return cachedUsers;
+}
+
+function getUsernameById(id) {
+    const u = cachedUsers.find(u => u.id === id);
+    return u ? u.username : `#${id}`;
+}
+
 async function loadAllConnections() {
+    await fetchUsers();
     const res = await authFetch('/api/v1/connections');
     if (!res.ok) return;
     const connections = await res.json();
@@ -224,20 +385,98 @@ async function loadAllConnections() {
 
     container.innerHTML = `
         <table class="admin-table">
-            <thead><tr><th>Name</th><th>Host:Port</th><th>Owner</th><th>Has PW</th><th>Shared With</th></tr></thead>
+            <thead><tr><th>Name</th><th>Host:Port</th><th>Has PW</th><th>Assigned To</th><th>Actions</th></tr></thead>
             <tbody>
                 ${connections.map(c => `
                     <tr>
                         <td>${esc(c.name)}</td>
                         <td>${esc(c.host)}:${c.port}</td>
-                        <td>${esc(c.ownerName || 'N/A')}</td>
                         <td>${c.hasPassword ? 'Yes' : 'No'}</td>
-                        <td>${(c.sharedWith || []).length ? c.sharedWith.join(', ') : 'None'}</td>
+                        <td>${(c.sharedWith || []).length ? c.sharedWith.map(id => esc(getUsernameById(id))).join(', ') : '<span class="empty-state-inline">None</span>'}</td>
+                        <td class="action-cell">
+                            <button class="btn-sm" data-conn-edit="${c.id}">Edit</button>
+                            <button class="btn-sm" data-conn-assign="${c.id}">Assign</button>
+                            <button class="btn-sm btn-sm-danger" data-conn-delete="${c.id}">Delete</button>
+                        </td>
                     </tr>
                 `).join('')}
             </tbody>
         </table>
     `;
+
+    container.querySelectorAll('[data-conn-edit]').forEach(btn => {
+        btn.addEventListener('click', () => editConn(parseInt(btn.dataset.connEdit, 10)));
+    });
+    container.querySelectorAll('[data-conn-assign]').forEach(btn => {
+        btn.addEventListener('click', () => assignConn(parseInt(btn.dataset.connAssign, 10)));
+    });
+    container.querySelectorAll('[data-conn-delete]').forEach(btn => {
+        btn.addEventListener('click', () => deleteConn(parseInt(btn.dataset.connDelete, 10)));
+    });
+}
+
+function showAddConnectionDialog() {
+    document.getElementById('add-conn-modal').classList.remove('hidden');
+    document.getElementById('add-conn-form').reset();
+    document.getElementById('add-conn-error').classList.add('hidden');
+}
+
+async function editConn(id) {
+    const res = await authFetch(`/api/v1/connections/${id}`);
+    if (!res.ok) return;
+    const conn = await res.json();
+
+    document.getElementById('edit-conn-id').value = id;
+    document.getElementById('edit-conn-name').value = conn.name;
+    document.getElementById('edit-conn-host').value = conn.host;
+    document.getElementById('edit-conn-port').value = conn.port;
+    document.getElementById('edit-conn-password').value = '';
+    document.getElementById('edit-conn-modal').classList.remove('hidden');
+}
+
+async function assignConn(id) {
+    try {
+        const [connRes, usersRes] = await Promise.all([
+            authFetch(`/api/v1/connections/${id}`),
+            authFetch('/api/v1/users'),
+        ]);
+        if (!connRes.ok) return;
+        const conn = await connRes.json();
+        const users = usersRes.ok ? await usersRes.json() : [];
+
+        const nonAdminUsers = users.filter(u => u.role !== 'admin' && u.enabled);
+        const assigned = conn.sharedWith || [];
+
+        document.getElementById('assign-conn-id').value = id;
+        document.getElementById('assign-conn-title').textContent = conn.name;
+        const listEl = document.getElementById('assign-conn-users');
+
+        if (!nonAdminUsers.length) {
+            listEl.innerHTML = '<p class="empty-state" style="padding:12px">No non-admin users found. Create operator or viewer users first.</p>';
+        } else {
+            listEl.innerHTML = nonAdminUsers.map(u => `
+                <label class="assign-user-row">
+                    <input type="checkbox" value="${u.id}" ${assigned.includes(u.id) ? 'checked' : ''}>
+                    <span>${esc(u.username)}</span>
+                    <span class="role-badge role-${u.role}">${u.role}</span>
+                </label>
+            `).join('');
+        }
+
+        document.getElementById('assign-conn-modal').classList.remove('hidden');
+    } catch (err) {
+        console.error('Failed to load assign dialog:', err);
+        showToast('Failed to load assignment data', 'error');
+    }
+}
+
+async function deleteConn(id) {
+    showConfirm('Delete Connection', 'Are you sure you want to delete this connection?', async () => {
+        await authFetch(`/api/v1/connections/${id}`, { method: 'DELETE' });
+        showToast('Connection deleted');
+        loadAllConnections();
+        if (appRef) appRef.loadConnections();
+    });
 }
 
 // --- License ---
@@ -273,7 +512,7 @@ async function uploadLicense() {
     const textarea = document.getElementById('license-upload');
     const licenseData = textarea.value.trim();
     if (!licenseData) {
-        alert('Please paste the license file content');
+        showToast('Please paste the license file content', 'error');
         return;
     }
 
@@ -285,11 +524,11 @@ async function uploadLicense() {
 
     const data = await res.json();
     if (res.ok) {
-        alert('License uploaded successfully');
+        showToast('License uploaded successfully');
         textarea.value = '';
         loadLicense();
     } else {
-        alert(data.error || 'Failed to upload license');
+        showToast(data.error || 'Failed to upload license', 'error');
     }
 }
 

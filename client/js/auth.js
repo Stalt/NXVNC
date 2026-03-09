@@ -51,10 +51,15 @@ function getUser() {
     return currentUser;
 }
 
-function getToken() {
-    // Read the JS-accessible WS token cookie
-    const match = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('nxvnc_ws_token='));
-    return match ? match.split('=')[1] : cachedToken;
+async function getToken() {
+    try {
+        const res = await authFetch('/api/v1/auth/ws-token');
+        if (res.ok) {
+            const data = await res.json();
+            return data.token;
+        }
+    } catch {}
+    return null;
 }
 
 export { authFetch, checkAuth, logout, getUser, getToken, getCsrfToken };

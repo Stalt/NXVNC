@@ -1,8 +1,9 @@
 const express = require('express');
 const crypto = require('crypto');
 const { getDb } = require('../db/database');
-const { verifyPassword, hashPassword, generateToken, revokeSession } = require('../auth/auth');
-const { requireAuth } = require('../auth/middleware');
+const { verifyPassword, hashPassword, generateToken, generateWsToken, revokeSession } = require('../auth/auth');
+const { requireAuth, csrfProtect } = require('../auth/middleware');
+const { checkPasswordReuse, savePasswordHistory } = require('../auth/auth');
 const { logAudit } = require('../audit/audit');
 
 const router = express.Router();
@@ -17,13 +18,19 @@ router.post('/login', async (req, res) => {
     const db = getDb();
     const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
 
-    if (!user || !user.enabled) {
+    if (!user) {
+        logAudit(null, 'login_failed', username, req.ip, { reason: 'user_not_found' });
+        return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    if (!user.enabled) {
+        logAudit(user.id, 'login_failed', username, req.ip, { reason: 'account_disabled' });
         return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const valid = await verifyPassword(password, user.password_hash);
     if (!valid) {
-        logAudit(user.id, 'login_failed', username, req.ip, null);
+        logAudit(user.id, 'login_failed', username, req.ip, { reason: 'wrong_password' });
         return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -35,22 +42,14 @@ router.post('/login', async (req, res) => {
     res.cookie('nxvnc_token', token, {
         httpOnly: true,
         sameSite: 'strict',
-        secure: req.secure,
-        maxAge: 8 * 60 * 60 * 1000,
-    });
-
-    // Readable token for WebSocket auth (JS needs to read this for WS URL)
-    res.cookie('nxvnc_ws_token', token, {
-        httpOnly: false,
-        sameSite: 'strict',
-        secure: req.secure,
+        secure: true,
         maxAge: 8 * 60 * 60 * 1000,
     });
 
     res.cookie('nxvnc_csrf', csrfToken, {
         httpOnly: false,
         sameSite: 'strict',
-        secure: req.secure,
+        secure: true,
         maxAge: 8 * 60 * 60 * 1000,
     });
 
@@ -69,7 +68,7 @@ router.post('/login', async (req, res) => {
 });
 
 // POST /api/v1/auth/logout
-router.post('/logout', requireAuth, (req, res) => {
+router.post('/logout', requireAuth, csrfProtect, (req, res) => {
     revokeSession(req.tokenJti);
     logAudit(req.user.id, 'logout', req.user.username, req.ip, null);
     res.clearCookie('nxvnc_token');
@@ -90,7 +89,7 @@ router.get('/me', requireAuth, (req, res) => {
 });
 
 // POST /api/v1/auth/change-password
-router.post('/change-password', requireAuth, async (req, res) => {
+router.post('/change-password', requireAuth, csrfProtect, async (req, res) => {
     const { currentPassword, newPassword } = req.body;
     if (!currentPassword || !newPassword) {
         return res.status(400).json({ error: 'Current and new password required' });
@@ -107,13 +106,25 @@ router.post('/change-password', requireAuth, async (req, res) => {
         return res.status(401).json({ error: 'Current password is incorrect' });
     }
 
+    const reused = await checkPasswordReuse(req.user.id, newPassword);
+    if (reused) {
+        return res.status(400).json({ error: 'Cannot reuse a recent password' });
+    }
+
     const hash = await hashPassword(newPassword);
     db.prepare("UPDATE users SET password_hash = ?, must_change_password = 0, updated_at = datetime('now') WHERE id = ?")
         .run(hash, req.user.id);
 
+    savePasswordHistory(req.user.id, hash);
     logAudit(req.user.id, 'password_change', req.user.username, req.ip, null);
 
     res.json({ ok: true });
+});
+
+// GET /api/v1/auth/ws-token — short-lived token for WebSocket auth
+router.get('/ws-token', requireAuth, (req, res) => {
+    const wsToken = generateWsToken(req.user);
+    res.json({ token: wsToken });
 });
 
 module.exports = router;

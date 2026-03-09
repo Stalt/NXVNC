@@ -12,7 +12,7 @@ const { getDb, close } = require('./db/database');
 const { runMigrations } = require('./db/migrations/migrate');
 const { WebSocketProxy } = require('./proxy');
 const { requireAuth } = require('./auth/middleware');
-const { ensureTLS, getCertInfo } = require('./tls/selfsigned');
+const { ensureTLS, getCertInfo, monitorCertExpiry } = require('./tls/selfsigned');
 const { requireLicense } = require('./license/middleware');
 const { getLicense, isExpired, isInGracePeriod, isValid } = require('./license/license');
 const { cleanExpiredSessions } = require('./auth/auth');
@@ -30,6 +30,12 @@ const app = express();
 // --- Database & Migrations ---
 runMigrations();
 
+// Trust proxy headers when behind reverse proxy (nginx, etc.)
+// Set to specific value in production: app.set('trust proxy', 1)
+if (config.trustProxy) {
+    app.set('trust proxy', config.trustProxy);
+}
+
 // --- Security Middleware ---
 app.use(helmet({
     contentSecurityPolicy: {
@@ -39,9 +45,15 @@ app.use(helmet({
             connectSrc: ["'self'", "wss:", "ws:"],
             styleSrc: ["'self'", "'unsafe-inline'"],
             imgSrc: ["'self'", "data:"],
+            frameAncestors: ["'none'"],
         }
     },
-    hsts: { maxAge: 31536000, includeSubDomains: true },
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+    frameguard: { action: 'deny' },
+    noSniff: true,
+    xssFilter: true,
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    permittedCrossDomainPolicies: { permittedPolicies: 'none' },
 }));
 
 app.use(cookieParser());
@@ -67,6 +79,16 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
+// Stricter rate limiting on admin operations
+const adminLimiter = rateLimit({
+    windowMs: 60000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many admin requests. Please slow down.' },
+});
+app.use('/api/v1/users', adminLimiter);
+
 // --- Public Routes ---
 // Serve login page
 app.get('/login', (req, res) => {
@@ -78,6 +100,14 @@ app.get('/login.html', (req, res) => {
 
 // Auth routes (login is public, others require auth)
 app.use('/api/v1/auth', authRoutes);
+
+// CSRF protection on all state-changing API routes (POST/PUT/DELETE)
+const { csrfProtect } = require('./auth/middleware');
+app.use('/api/v1/users', csrfProtect);
+app.use('/api/v1/connections', csrfProtect);
+app.use('/api/v1/license', csrfProtect);
+app.use('/api/v1/audit', csrfProtect);
+app.use('/api/v1/settings', csrfProtect);
 
 // --- Authenticated Routes ---
 app.use('/api/v1/users', userRoutes);
@@ -146,6 +176,9 @@ if (certInfo) {
 // --- WebSocket Proxy ---
 const proxy = new WebSocketProxy(server);
 
+// --- TLS Certificate Monitoring ---
+monitorCertExpiry(server, config, tls);
+
 // --- Periodic Cleanup ---
 setInterval(() => {
     try {
@@ -153,7 +186,7 @@ setInterval(() => {
     } catch (e) {
         console.error('[cleanup] Session cleanup error:', e.message);
     }
-}, 60 * 60 * 1000); // Every hour
+}, 5 * 60 * 1000); // Every 5 minutes
 
 // --- License Check ---
 const license = getLicense();
@@ -171,6 +204,12 @@ if (license) {
 } else {
     console.log('[license] No license installed — running in unlicensed mode');
 }
+
+// Global error handler - never leak stack traces
+app.use((err, req, res, next) => {
+    console.error('[server] Unhandled error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+});
 
 // --- Start ---
 server.listen(config.port, () => {

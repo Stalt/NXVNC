@@ -1,4 +1,4 @@
-const { verifyToken } = require('./auth');
+const { verifyToken, updateSessionActivity } = require('./auth');
 
 function requireAuth(req, res, next) {
     let token = null;
@@ -25,6 +25,7 @@ function requireAuth(req, res, next) {
         }
         req.user = result.user;
         req.tokenJti = result.jti;
+        updateSessionActivity(result.jti);
         next();
     } catch (err) {
         return res.status(401).json({ error: 'Invalid or expired token' });

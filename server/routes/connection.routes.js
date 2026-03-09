@@ -21,14 +21,8 @@ router.get('/', (req, res) => {
             LEFT JOIN users u ON c.owner_id = u.id
             ORDER BY c.name
         `).all();
-    } else if (req.user.role === 'operator') {
-        connections = db.prepare(`
-            SELECT id, name, host, port, protocol, owner_id, shared_with, created_at, updated_at
-            FROM connections WHERE owner_id = ?
-            ORDER BY name
-        `).all(req.user.id);
     } else {
-        // Viewer: only connections shared with them
+        // Operators and viewers: only connections assigned to them
         connections = db.prepare(`
             SELECT id, name, host, port, protocol, owner_id, shared_with, created_at, updated_at
             FROM connections
@@ -57,8 +51,8 @@ router.get('/', (req, res) => {
 
 // POST /api/v1/connections
 router.post('/', (req, res) => {
-    if (req.user.role === 'viewer') {
-        return res.status(403).json({ error: 'Viewers cannot create connections' });
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Only admins can create connections' });
     }
 
     const { name, host, port, protocol, password } = req.body;
@@ -69,6 +63,15 @@ router.post('/', (req, res) => {
     const portNum = parseInt(port, 10);
     if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
         return res.status(400).json({ error: 'Invalid port number' });
+    }
+
+    // Validate host format
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9.\-]*$/.test(host) || host.length > 255) {
+        return res.status(400).json({ error: 'Invalid host format' });
+    }
+
+    if (name.length > 100) {
+        return res.status(400).json({ error: 'Name too long' });
     }
 
     const { ciphertext, iv, tag } = encryptPassword(password || null);
@@ -125,6 +128,13 @@ router.put('/:id', (req, res) => {
     }
 
     const { name, host, port, protocol, password } = req.body;
+
+    if (host && (!/^[a-zA-Z0-9][a-zA-Z0-9.\-]*$/.test(host) || host.length > 255)) {
+        return res.status(400).json({ error: 'Invalid host format' });
+    }
+    if (name && name.length > 100) {
+        return res.status(400).json({ error: 'Name too long' });
+    }
 
     let passwordFields = {};
     if (password !== undefined) {
@@ -214,8 +224,7 @@ function canAccess(user, conn) {
 }
 
 function canModify(user, conn) {
-    if (user.role === 'admin') return true;
-    return conn.owner_id === user.id && user.role === 'operator';
+    return user.role === 'admin';
 }
 
 module.exports = router;

@@ -38,26 +38,17 @@ config.rateLimitMax = parseInt(config.rateLimitMax, 10) || 10;
 config.apiRateLimitMax = parseInt(config.apiRateLimitMax, 10) || 100;
 config.apiRateLimitWindow = parseInt(config.apiRateLimitWindow, 10) || 60000;
 
-// Auto-generate secrets if missing (first run)
-let configChanged = false;
-
+// Auto-generate secrets if missing (runtime only, not persisted to disk)
 if (!config.jwtSecret) {
     config.jwtSecret = crypto.randomBytes(48).toString('hex');
-    userConfig.jwtSecret = config.jwtSecret;
-    configChanged = true;
-    console.log('[config] Generated random JWT secret');
+    console.warn('[config] WARNING: No JWT secret configured. Using random secret (sessions will not persist across restarts).');
+    console.warn('[config] Set NXVNC_JWT_SECRET environment variable for persistence.');
 }
 
 if (!config.masterKey) {
     config.masterKey = crypto.randomBytes(32).toString('hex');
-    userConfig.masterKey = config.masterKey;
-    configChanged = true;
-    console.log('[config] Generated random master encryption key');
-}
-
-if (configChanged) {
-    fs.writeFileSync(userConfigPath, JSON.stringify(userConfig, null, 2), 'utf8');
-    console.log('[config] Saved generated secrets to config.json');
+    console.warn('[config] WARNING: No master key configured. Using random key (encrypted passwords will be unrecoverable after restart).');
+    console.warn('[config] Set NXVNC_MASTER_KEY environment variable for persistence.');
 }
 
 // Resolve dbPath relative to project root

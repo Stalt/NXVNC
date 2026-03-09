@@ -111,16 +111,17 @@ class NXVNCApp {
             this.elements.btnAdmin.classList.toggle('hidden', this.user.role !== 'admin');
         }
 
-        // Viewers: force view-only, hide save button and input controls
-        if (this.user.role === 'viewer') {
-            this.settings.viewOnly = true;
-            if (this.elements.btnSave) this.elements.btnSave.classList.add('hidden');
-            if (this.elements.btnKeys) this.elements.btnKeys.classList.add('hidden');
-            if (this.elements.btnClipboard) this.elements.btnClipboard.classList.add('hidden');
-            if (this.elements.connPassword) this.elements.connPassword.parentElement.classList.add('hidden');
-            // Hide the new connection form for viewers
+        // Non-admins: hide connection form (connections are assigned by admin)
+        if (this.user.role !== 'admin') {
             const connectForm = document.querySelector('.connect-form');
             if (connectForm) connectForm.classList.add('hidden');
+        }
+
+        // Viewers: force view-only, hide input controls
+        if (this.user.role === 'viewer') {
+            this.settings.viewOnly = true;
+            if (this.elements.btnKeys) this.elements.btnKeys.classList.add('hidden');
+            if (this.elements.btnClipboard) this.elements.btnClipboard.classList.add('hidden');
         }
     }
 
@@ -395,7 +396,7 @@ class NXVNCApp {
         console.log(`[nxvnc] ${settingName} changed — will apply on next connection`);
     }
 
-    connect() {
+    async connect() {
         // Block if in cooldown
         if (this.cooldownEndTime && Date.now() < this.cooldownEndTime) {
             return;
@@ -427,7 +428,7 @@ class NXVNCApp {
 
         // Build WebSocket URL with auth token
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const token = getToken();
+        const token = await getToken();
         let wsUrl = `${wsProtocol}//${window.location.host}/websockify?host=${encodeURIComponent(host)}&port=${encodeURIComponent(port)}&token=${encodeURIComponent(token)}`;
         if (this.settings.wsCompression) wsUrl += '&compress=1';
 
@@ -502,11 +503,11 @@ class NXVNCApp {
             });
 
             this.rfb.addEventListener('credentialsrequired', () => {
-                const pw = (this.elements.connPassword && this.elements.connPassword.value) || prompt('VNC Password:');
+                const pw = this.elements.connPassword && this.elements.connPassword.value;
                 if (pw) {
                     this.rfb.sendCredentials({ password: pw });
                 } else {
-                    this.disconnect();
+                    this.showVncPasswordModal();
                 }
             });
 
@@ -862,6 +863,38 @@ class NXVNCApp {
         document.getElementById(modalId).classList.toggle('hidden');
     }
 
+    showVncPasswordModal() {
+        const modal = document.getElementById('vnc-password-modal');
+        const input = document.getElementById('vnc-password-input');
+        const form = document.getElementById('vnc-password-form');
+        const cancelBtn = document.getElementById('vnc-password-cancel');
+        input.value = '';
+        modal.classList.remove('hidden');
+        input.focus();
+
+        const cleanup = () => {
+            modal.classList.add('hidden');
+            form.removeEventListener('submit', onSubmit);
+            cancelBtn.removeEventListener('click', onCancel);
+        };
+        const onSubmit = (e) => {
+            e.preventDefault();
+            const pw = input.value;
+            cleanup();
+            if (pw && this.rfb) {
+                this.rfb.sendCredentials({ password: pw });
+            } else {
+                this.disconnect();
+            }
+        };
+        const onCancel = () => {
+            cleanup();
+            this.disconnect();
+        };
+        form.addEventListener('submit', onSubmit);
+        cancelBtn.addEventListener('click', onCancel);
+    }
+
     sendClipboard() {
         if (this.rfb && this.elements.clipboardText.value) {
             this.rfb.clipboardPasteFrom(this.elements.clipboardText.value);
@@ -976,7 +1009,7 @@ class NXVNCApp {
                 <div class="card-details">${this.escapeHtml(c.host)}:${c.port} (${c.protocol})</div>
                 <div class="card-actions">
                     <button class="card-btn-connect" data-host="${this.escapeHtml(c.host)}" data-port="${c.port}">Connect</button>
-                    ${this.user.role !== 'viewer' ? `<button class="card-btn-delete" data-id="${c.id}">Delete</button>` : ''}
+                    ${this.user.role === 'admin' ? `<button class="card-btn-delete" data-id="${c.id}">Delete</button>` : ''}
                 </div>
             </div>
         `).join('');

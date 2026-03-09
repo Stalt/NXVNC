@@ -40,9 +40,9 @@ function createSelfSignedCert(privateKeyPem, publicKeyPem, hostname) {
     const serial = crypto.randomBytes(16);
     serial[0] &= 0x7F; // Ensure positive
 
-    // Validity: now to +365 days
+    // Validity: now to +90 days
     const notBefore = new Date();
-    const notAfter = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    const notAfter = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
 
     // Subject/Issuer: CN=hostname, O=NXVNC Self-Signed
     const issuer = buildName(hostname);
@@ -200,7 +200,7 @@ function buildTBSCertificate(serial, issuer, notBefore, notAfter, subject, pubKe
         issuer,
         seq(encodeUTCTime(notBefore), encodeUTCTime(notAfter)),
         subject,
-        tag(0x30, pubKeyDer.slice(pubKeyDer.indexOf(0x30, 1) > 0 ? 0 : 0, pubKeyDer.length)), // reuse raw SPKI
+        pubKeyDer, // SubjectPublicKeyInfo is already a complete SEQUENCE
         contextTag(3, seq(sanExt)) // extensions
     );
 }
@@ -224,6 +224,20 @@ function ensureTLS(config) {
     // User-provided certs take priority
     if (config.tlsCert && config.tlsKey) {
         if (fs.existsSync(config.tlsCert) && fs.existsSync(config.tlsKey)) {
+            // Check expiry of user-provided cert
+            try {
+                const certPem = fs.readFileSync(config.tlsCert, 'utf8');
+                const x509 = new crypto.X509Certificate(certPem);
+                const validTo = new Date(x509.validTo);
+                const daysLeft = (validTo - Date.now()) / (24 * 60 * 60 * 1000);
+                if (daysLeft <= 0) {
+                    console.error('[tls] WARNING: User-provided certificate has EXPIRED!');
+                } else if (daysLeft <= 30) {
+                    console.warn(`[tls] WARNING: User-provided certificate expires in ${Math.floor(daysLeft)} days`);
+                }
+            } catch (e) {
+                console.error('[tls] WARNING: Could not read user-provided certificate:', e.message);
+            }
             return { certPath: config.tlsCert, keyPath: config.tlsKey, selfSigned: false };
         }
         console.error(`[tls] Configured cert/key not found: ${config.tlsCert}, ${config.tlsKey}`);
@@ -260,7 +274,7 @@ function ensureTLS(config) {
     const { cert, key } = generateSelfSignedCert('localhost');
     fs.writeFileSync(certPath, cert, 'utf8');
     fs.writeFileSync(keyPath, key, 'utf8');
-    console.log('[tls] Self-signed certificate generated (valid for 365 days)');
+    console.log('[tls] Self-signed certificate generated (valid for 90 days)');
 
     return { certPath, keyPath, selfSigned: true };
 }
@@ -286,4 +300,54 @@ function getCertInfo(certPath) {
     }
 }
 
-module.exports = { ensureTLS, getCertInfo, generateSelfSignedCert };
+/**
+ * Monitor certificate expiry on a running server.
+ * For self-signed certs: auto-regenerate if <= 30 days remaining.
+ * For user-provided certs: log warnings at 30, 14, 7, 1, 0 days.
+ */
+function monitorCertExpiry(server, config, tlsInfo) {
+    const CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+
+    setInterval(() => {
+        try {
+            const certPath = tlsInfo.certPath;
+            const certPem = fs.readFileSync(certPath, 'utf8');
+            const x509 = new crypto.X509Certificate(certPem);
+            const validTo = new Date(x509.validTo);
+            const daysLeft = (validTo - Date.now()) / (24 * 60 * 60 * 1000);
+
+            if (tlsInfo.selfSigned) {
+                if (daysLeft <= 30) {
+                    console.log('[tls] Self-signed certificate expiring soon, regenerating...');
+                    const { cert, key } = generateSelfSignedCert('localhost');
+                    fs.writeFileSync(tlsInfo.certPath, cert, 'utf8');
+                    fs.writeFileSync(tlsInfo.keyPath, key, 'utf8');
+
+                    // Reload TLS context on the running server
+                    server.setSecureContext({
+                        cert: fs.readFileSync(tlsInfo.certPath),
+                        key: fs.readFileSync(tlsInfo.keyPath),
+                    });
+                    console.log('[tls] Self-signed certificate regenerated and reloaded (valid for 90 days)');
+                }
+            } else {
+                // User-provided cert - just warn
+                if (daysLeft <= 0) {
+                    console.error('[tls] WARNING: TLS certificate has EXPIRED! Replace immediately.');
+                } else if (daysLeft <= 1) {
+                    console.error(`[tls] CRITICAL: TLS certificate expires in less than 1 day!`);
+                } else if (daysLeft <= 7) {
+                    console.warn(`[tls] WARNING: TLS certificate expires in ${Math.floor(daysLeft)} days`);
+                } else if (daysLeft <= 14) {
+                    console.warn(`[tls] NOTICE: TLS certificate expires in ${Math.floor(daysLeft)} days`);
+                } else if (daysLeft <= 30) {
+                    console.log(`[tls] INFO: TLS certificate expires in ${Math.floor(daysLeft)} days`);
+                }
+            }
+        } catch (err) {
+            console.error('[tls] Certificate monitoring error:', err.message);
+        }
+    }, CHECK_INTERVAL);
+}
+
+module.exports = { ensureTLS, getCertInfo, generateSelfSignedCert, monitorCertExpiry };

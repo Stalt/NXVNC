@@ -1,9 +1,90 @@
 const WebSocket = require('ws');
 const net = require('net');
 const url = require('url');
-const { verifyToken } = require('./auth/auth');
+const dns = require('dns');
+const { verifyWsToken } = require('./auth/auth');
 const { logAudit } = require('./audit/audit');
 const { checkLimits, isFreeMode, FREE_SESSION_LIMIT_MS, FREE_COOLDOWN_MS } = require('./license/license');
+
+const HOSTNAME_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9.-]*$/;
+const MAX_HOSTNAME_LENGTH = 255;
+
+/**
+ * Checks whether an IP address falls within private or reserved ranges.
+ * Supports both IPv4 and IPv6.
+ */
+function isPrivateIP(ip) {
+    // IPv4 checks
+    const ipv4Parts = ip.split('.').map(Number);
+    if (ipv4Parts.length === 4 && ipv4Parts.every(p => p >= 0 && p <= 255)) {
+        const [a, b] = ipv4Parts;
+        if (a === 127) return true;                              // 127.0.0.0/8
+        if (a === 10) return true;                               // 10.0.0.0/8
+        if (a === 172 && b >= 16 && b <= 31) return true;       // 172.16.0.0/12
+        if (a === 192 && b === 168) return true;                 // 192.168.0.0/16
+        if (a === 0) return true;                                // 0.0.0.0/8
+        if (a === 169 && b === 254) return true;                 // 169.254.0.0/16 (link-local/cloud metadata)
+        if (a === 100 && b >= 64 && b <= 127) return true;      // 100.64.0.0/10 (CGNAT)
+        return false;
+    }
+
+    // IPv6 checks
+    const normalized = ip.toLowerCase();
+    if (normalized === '::1') return true;                       // IPv6 loopback
+    if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true; // fc00::/7
+    if (normalized.startsWith('fe80')) return true;              // fe80::/10 (link-local)
+    // IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
+    const v4Mapped = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+    if (v4Mapped) return isPrivateIP(v4Mapped[1]);
+
+    return false;
+}
+
+/**
+ * Validates a target host and port for SSRF protection.
+ * Resolves hostnames via DNS and checks the resulting IP against blocked ranges.
+ * Throws an error string if the target is not allowed.
+ */
+async function validateTarget(host, port) {
+    // Port validation
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        throw 'Invalid port number';
+    }
+
+    // Hostname format validation
+    if (host.length > MAX_HOSTNAME_LENGTH) {
+        throw 'Hostname too long';
+    }
+    if (!HOSTNAME_REGEX.test(host)) {
+        throw 'Invalid hostname format';
+    }
+
+    // Block known dangerous hostnames
+    const lowerHost = host.toLowerCase();
+    if (lowerHost === 'localhost' || lowerHost.endsWith('.local') || lowerHost.endsWith('.internal')) {
+        throw 'Blocked hostname';
+    }
+
+    // If host is already an IP, check it directly
+    if (net.isIP(host)) {
+        if (isPrivateIP(host)) {
+            throw 'Connection to private/reserved IP is not allowed';
+        }
+        return;
+    }
+
+    // Resolve hostname and check the resulting IP
+    let result;
+    try {
+        result = await dns.promises.lookup(host);
+    } catch (e) {
+        throw 'DNS resolution failed';
+    }
+
+    if (isPrivateIP(result.address)) {
+        throw 'Hostname resolves to a private/reserved IP';
+    }
+}
 
 class WebSocketProxy {
     constructor(server) {
@@ -13,6 +94,7 @@ class WebSocketProxy {
         this.activeUsers = new Set();
         // Track cooldown per user: userId -> cooldownExpiresAt (timestamp)
         this.cooldowns = new Map();
+        this.connectionAttempts = new Map(); // userId -> [timestamps]
 
         server.on('upgrade', (request, socket, head) => {
             const parsed = url.parse(request.url, true);
@@ -28,7 +110,7 @@ class WebSocketProxy {
 
                 let authResult;
                 try {
-                    authResult = verifyToken(token);
+                    authResult = verifyWsToken(token);
                 } catch (e) {
                     authResult = null;
                 }
@@ -40,6 +122,13 @@ class WebSocketProxy {
                 }
 
                 const user = authResult.user;
+
+                // WebSocket connection rate limiting
+                if (!this.checkConnectionRate(user.id)) {
+                    socket.write('HTTP/1.1 429 Too Many Requests\r\n\r\n');
+                    socket.destroy();
+                    return;
+                }
 
                 // Check license limits
                 const limits = checkLimits(this.activeUsers.size, this.activeConnections.size);
@@ -81,13 +170,31 @@ class WebSocketProxy {
         });
     }
 
-    handleConnection(ws, request, user) {
+    checkConnectionRate(userId, maxAttempts = 5, windowMs = 60000) {
+        const now = Date.now();
+        const attempts = this.connectionAttempts.get(userId) || [];
+        const recent = attempts.filter(t => now - t < windowMs);
+        recent.push(now);
+        this.connectionAttempts.set(userId, recent);
+        return recent.length <= maxAttempts;
+    }
+
+    async handleConnection(ws, request, user) {
         const params = url.parse(request.url, true).query;
         const targetHost = params.host;
         const targetPort = parseInt(params.port, 10);
 
         if (!targetHost || !targetPort) {
             ws.close(1008, 'Missing host or port parameter');
+            return;
+        }
+
+        // SSRF protection: validate target before connecting
+        try {
+            await validateTarget(targetHost, targetPort);
+        } catch (reason) {
+            console.warn(`[proxy] Blocked connection attempt by ${user.username} to ${targetHost}:${targetPort} — ${reason}`);
+            ws.close(1008, 'Connection to this host is not allowed');
             return;
         }
 

@@ -1,6 +1,6 @@
 const express = require('express');
 const { getDb } = require('../db/database');
-const { hashPassword, revokeAllUserSessions } = require('../auth/auth');
+const { hashPassword, revokeAllUserSessions, savePasswordHistory } = require('../auth/auth');
 const { requireAuth, requireRole } = require('../auth/middleware');
 const { logAudit } = require('../audit/audit');
 
@@ -143,6 +143,7 @@ router.post('/:id/reset-password', async (req, res) => {
     db.prepare("UPDATE users SET password_hash = ?, must_change_password = 1, updated_at = datetime('now') WHERE id = ?")
         .run(hash, req.params.id);
 
+    savePasswordHistory(parseInt(req.params.id), hash);
     revokeAllUserSessions(user.id);
     logAudit(req.user.id, 'password_reset', user.username, req.ip, null);
 

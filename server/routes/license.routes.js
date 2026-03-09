@@ -42,7 +42,8 @@ router.post('/', (req, res) => {
 
         res.json({ ok: true, license: result.payload });
     } catch (err) {
-        return res.status(400).json({ error: 'Invalid license file: ' + err.message });
+        console.error('[license] Invalid license file:', err.message);
+        return res.status(400).json({ error: 'Invalid license file format' });
     }
 });
 
