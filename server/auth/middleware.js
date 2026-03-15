@@ -10,8 +10,8 @@ function requireAuth(req, res, next) {
     }
 
     // Fall back to cookie
-    if (!token && req.cookies && req.cookies.nxvnc_token) {
-        token = req.cookies.nxvnc_token;
+    if (!token && req.cookies && req.cookies.webvnc_token) {
+        token = req.cookies.webvnc_token;
     }
 
     if (!token) {
@@ -47,8 +47,8 @@ function csrfProtect(req, res, next) {
         return next();
     }
 
-    const cookieToken = req.cookies && req.cookies.nxvnc_csrf;
-    const headerToken = req.headers['x-nxvnc-csrf'];
+    const cookieToken = req.cookies && req.cookies.webvnc_csrf;
+    const headerToken = req.headers['x-webvnc-csrf'];
 
     if (!cookieToken || !headerToken || cookieToken !== headerToken) {
         return res.status(403).json({ error: 'CSRF validation failed' });

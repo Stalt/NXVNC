@@ -52,12 +52,12 @@ const signer = crypto.createSign('RSA-SHA256');
 signer.update(payloadB64);
 const signatureB64 = signer.sign(privateKey, 'base64');
 
-const licenseFile = `-----BEGIN NXVNC LICENSE-----
+const licenseFile = `-----BEGIN WEBVNC LICENSE-----
 ${payloadB64.match(/.{1,64}/g).join('\n')}
------END NXVNC LICENSE-----
------BEGIN NXVNC SIGNATURE-----
+-----END WEBVNC LICENSE-----
+-----BEGIN WEBVNC SIGNATURE-----
 ${signatureB64.match(/.{1,64}/g).join('\n')}
------END NXVNC SIGNATURE-----
+-----END WEBVNC SIGNATURE-----
 `;
 
 fs.writeFileSync(outputFile, licenseFile);

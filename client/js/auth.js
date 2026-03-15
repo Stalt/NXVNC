@@ -4,13 +4,13 @@ let cachedToken = null;
 let currentUser = null;
 
 function getCsrfToken() {
-    const match = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('nxvnc_csrf='));
+    const match = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('webvnc_csrf='));
     return match ? match.split('=')[1] : '';
 }
 
 async function authFetch(url, options = {}) {
     const headers = { ...options.headers };
-    headers['X-NXVNC-CSRF'] = getCsrfToken();
+    headers['X-WebVNC-CSRF'] = getCsrfToken();
 
     if (cachedToken) {
         headers['Authorization'] = 'Bearer ' + cachedToken;

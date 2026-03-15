@@ -39,14 +39,14 @@ router.post('/login', async (req, res) => {
     // Set CSRF cookie
     const csrfToken = crypto.randomBytes(24).toString('hex');
 
-    res.cookie('nxvnc_token', token, {
+    res.cookie('webvnc_token', token, {
         httpOnly: true,
         sameSite: 'strict',
         secure: true,
         maxAge: 8 * 60 * 60 * 1000,
     });
 
-    res.cookie('nxvnc_csrf', csrfToken, {
+    res.cookie('webvnc_csrf', csrfToken, {
         httpOnly: false,
         sameSite: 'strict',
         secure: true,
@@ -71,9 +71,9 @@ router.post('/login', async (req, res) => {
 router.post('/logout', requireAuth, csrfProtect, (req, res) => {
     revokeSession(req.tokenJti);
     logAudit(req.user.id, 'logout', req.user.username, req.ip, null);
-    res.clearCookie('nxvnc_token');
-    res.clearCookie('nxvnc_ws_token');
-    res.clearCookie('nxvnc_csrf');
+    res.clearCookie('webvnc_token');
+    res.clearCookie('webvnc_ws_token');
+    res.clearCookie('webvnc_csrf');
     res.json({ ok: true });
 });
 

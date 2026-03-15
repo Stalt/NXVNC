@@ -64,7 +64,7 @@ changePwForm.addEventListener('submit', async (e) => {
     }
 
     try {
-        const csrfCookie = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('nxvnc_csrf='));
+        const csrfCookie = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('webvnc_csrf='));
         const csrf = csrfCookie ? csrfCookie.split('=')[1] : '';
 
         const res = await fetch('/api/v1/auth/change-password', {
@@ -72,7 +72,7 @@ changePwForm.addEventListener('submit', async (e) => {
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': 'Bearer ' + authToken,
-                'X-NXVNC-CSRF': csrf,
+                'X-WebVNC-CSRF': csrf,
             },
             body: JSON.stringify({ currentPassword, newPassword }),
         });

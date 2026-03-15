@@ -1,6 +1,6 @@
 """
-NXVNC System Tray Application
-Manages the NXVNC Windows Service and provides quick access to the web interface.
+WebVNC System Tray Application
+Manages the WebVNC Windows Service and provides quick access to the web interface.
 """
 
 import os
@@ -18,16 +18,16 @@ from logging.handlers import RotatingFileHandler
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 
-SERVICE_NAME = "NXVNC"
-SERVICE_DISPLAY = "NXVNC Remote Desktop"
-SERVICE_EXE = "NXVNCSvc.exe"
-TRAY_EXE = "NXVNC.exe"
-REGISTRY_NAME = "NXVNCTray"
+SERVICE_NAME = "WebVNC"
+SERVICE_DISPLAY = "videowares WebVNC"
+SERVICE_EXE = "WebVNCSvc.exe"
+TRAY_EXE = "WebVNC.exe"
+REGISTRY_NAME = "WebVNCTray"
 DASHBOARD_URL = "https://localhost:6080"
 HEALTH_URL = "https://localhost:6080/health"
 HEALTH_POLL_INTERVAL = 5  # seconds
 
-LOG_DIR = os.path.join(os.environ.get("LOCALAPPDATA", ""), "NXVNC")
+LOG_DIR = os.path.join(os.environ.get("LOCALAPPDATA", ""), "WebVNC")
 LOG_FILE = os.path.join(LOG_DIR, "tray.log")
 LOG_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
 LOG_BACKUP_COUNT = 3
@@ -36,7 +36,7 @@ LOG_BACKUP_COUNT = 3
 
 os.makedirs(LOG_DIR, exist_ok=True)
 
-logger = logging.getLogger("NXVNCTray")
+logger = logging.getLogger("WebVNCTray")
 logger.setLevel(logging.DEBUG)
 
 _handler = RotatingFileHandler(
@@ -56,7 +56,7 @@ except ImportError as exc:
     ctypes.windll.user32.MessageBoxW(
         0,
         "Missing Python packages.\nRun:  pip install pystray pillow",
-        "NXVNC Tray",
+        "WebVNC Tray",
         0x10,
     )
     sys.exit(1)
@@ -82,7 +82,7 @@ def _run_elevated(cmd: str, args: str = ""):
 
 
 def _sc(action: str):
-    """Run 'sc <action> NXVNC' with elevation."""
+    """Run 'sc <action> WebVNC' with elevation."""
     _run_elevated("sc.exe", f"{action} {SERVICE_NAME}")
 
 
@@ -114,7 +114,7 @@ def _query_service_status():
 
 
 def _check_health():
-    """Check if the NXVNC server is responding on HTTPS.
+    """Check if the WebVNC server is responding on HTTPS.
     Any HTTP response (200, 302, 401, etc.) means the server is up."""
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
@@ -232,14 +232,14 @@ def _create_icon(color: str) -> Image.Image:
 # ── Tray Application ─────────────────────────────────────────────────────────
 
 
-class NXVNCTray:
+class WebVNCTray:
     def __init__(self):
         self._status = "unknown"
         self._healthy = False
         self._icon = None
         self._stop_event = threading.Event()
 
-        logger.info("NXVNC Tray starting (pid=%d)", os.getpid())
+        logger.info("WebVNC Tray starting (pid=%d)", os.getpid())
 
     # ── Actions ────────────────────────────────────────────────────────────
 
@@ -416,7 +416,7 @@ class NXVNCTray:
 
 if __name__ == "__main__":
     try:
-        tray = NXVNCTray()
+        tray = WebVNCTray()
         tray.run()
     except Exception:
         logger.exception("Fatal error in tray app")

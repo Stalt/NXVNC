@@ -4,10 +4,10 @@ const PUBLIC_KEY = require('./publicKey');
 
 function parseLicenseFile(content) {
     const payloadMatch = content.match(
-        /-----BEGIN NXVNC LICENSE-----\s*([\s\S]*?)\s*-----END NXVNC LICENSE-----/
+        /-----BEGIN WEBVNC LICENSE-----\s*([\s\S]*?)\s*-----END WEBVNC LICENSE-----/
     );
     const sigMatch = content.match(
-        /-----BEGIN NXVNC SIGNATURE-----\s*([\s\S]*?)\s*-----END NXVNC SIGNATURE-----/
+        /-----BEGIN WEBVNC SIGNATURE-----\s*([\s\S]*?)\s*-----END WEBVNC SIGNATURE-----/
     );
 
     if (!payloadMatch || !sigMatch) {

@@ -1,5 +1,5 @@
 """
-One-command build orchestrator for NXVNC Remote Desktop.
+One-command build orchestrator for videowares WebVNC.
 
 Usage:
     python build.py                 # Full build
@@ -51,14 +51,14 @@ def build_service_exe():
     print("Step 3: Building service executable (pkg)")
     print("=" * 60)
 
-    dist_dir = Path("dist/NXVNC")
+    dist_dir = Path("dist/WebVNC")
     dist_dir.mkdir(parents=True, exist_ok=True)
 
     # Check if pkg is available
     result = subprocess.run(
         ["npx", "@yao-pkg/pkg", "service_runner.js",
          "--targets", "node22-win-x64",
-         "--output", str(dist_dir / "NXVNCSvc.exe"),
+         "--output", str(dist_dir / "WebVNCSvc.exe"),
          "--compress", "GZip"],
         check=False, shell=True
     )
@@ -68,7 +68,7 @@ def build_service_exe():
         # Fallback: copy the Node.js files directly
         copy_node_files(dist_dir)
     else:
-        print(f"  Built NXVNCSvc.exe")
+        print(f"  Built WebVNCSvc.exe")
         # Copy native addon .node files that pkg cannot embed
         copy_native_modules(dist_dir)
     print()
@@ -150,14 +150,14 @@ def build_tray_exe(debug=False):
         print("  Skipping tray build.\n")
         return
 
-    dist_dir = Path("dist/NXVNC")
+    dist_dir = Path("dist/WebVNC")
     dist_dir.mkdir(parents=True, exist_ok=True)
 
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--onefile",
         "--noconsole",
-        "--name", "NXVNC",
+        "--name", "WebVNC",
         "--distpath", str(dist_dir),
         "--workpath", "build/tray",
         "--specpath", "build",
@@ -177,7 +177,7 @@ def build_tray_exe(debug=False):
     if result.returncode != 0:
         print("  ERROR: PyInstaller failed!")
     else:
-        print("  Tray app built: NXVNC.exe")
+        print("  Tray app built: WebVNC.exe")
     print()
 
 
@@ -187,7 +187,7 @@ def download_nssm():
     print("Step 5: Downloading NSSM")
     print("=" * 60)
 
-    dist_dir = Path("dist/NXVNC")
+    dist_dir = Path("dist/WebVNC")
     nssm_dest = dist_dir / "nssm.exe"
 
     if nssm_dest.exists():
@@ -220,9 +220,9 @@ def copy_dist_files():
     print("Step 6: Copying support files to dist")
     print("=" * 60)
 
-    dist_dir = Path("dist/NXVNC")
+    dist_dir = Path("dist/WebVNC")
     if not dist_dir.exists():
-        print("  WARNING: dist/NXVNC not found. Skipping.")
+        print("  WARNING: dist/WebVNC not found. Skipping.")
         return
 
     for f in ["manage_service.bat"]:
@@ -240,11 +240,11 @@ def verify_build():
     print("Build verification")
     print("=" * 60)
 
-    dist_dir = Path("dist/NXVNC")
+    dist_dir = Path("dist/WebVNC")
 
     for name, filename in [
-        ("Tray control panel", "NXVNC.exe"),
-        ("Service executable", "NXVNCSvc.exe"),
+        ("Tray control panel", "WebVNC.exe"),
+        ("Service executable", "WebVNCSvc.exe"),
         ("NSSM", "nssm.exe"),
         ("Service manager", "manage_service.bat"),
     ]:
@@ -254,7 +254,7 @@ def verify_build():
             print(f"  {name}: {p} ({size_mb:.1f} MB)")
         else:
             # Check fallback (Node.js files instead of exe)
-            if filename == "NXVNCSvc.exe" and (dist_dir / "service_runner.js").exists():
+            if filename == "WebVNCSvc.exe" and (dist_dir / "service_runner.js").exists():
                 print(f"  {name}: Using Node.js files (no pkg compilation)")
             else:
                 print(f"  WARNING: {filename} not found!")
@@ -331,7 +331,7 @@ def build_installer(build_number_override=None):
         print("  ERROR: Installer compilation failed!")
         return
 
-    installer = list(Path("dist").glob("NXVNCSetup_*.exe"))
+    installer = list(Path("dist").glob("WebVNCSetup_*.exe"))
     if installer:
         size_mb = installer[-1].stat().st_size / (1024 * 1024)
         print(f"  Installer: {installer[-1]} ({size_mb:.1f} MB)")
@@ -339,14 +339,14 @@ def build_installer(build_number_override=None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Build NXVNC Remote Desktop")
+    parser = argparse.ArgumentParser(description="Build videowares WebVNC")
     parser.add_argument("--skip-installer", action="store_true")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--build-number", type=int, default=None)
     args = parser.parse_args()
 
     print("\n" + "=" * 60)
-    print("  NXVNC Remote Desktop — Build")
+    print("  videowares WebVNC — Build")
     print("=" * 60 + "\n")
 
     clean()
@@ -366,7 +366,7 @@ def main():
     print("  BUILD COMPLETE")
     print("=" * 60)
 
-    installers = sorted(Path("dist").glob("NXVNCSetup_*.exe"))
+    installers = sorted(Path("dist").glob("WebVNCSetup_*.exe"))
     installer = installers[-1] if installers else None
     if installer and installer.exists():
         print()
@@ -381,10 +381,10 @@ def main():
     else:
         print()
         print("  Manual setup (no installer):")
-        print("  1. Copy dist\\NXVNC\\ to target machine")
+        print("  1. Copy dist\\WebVNC\\ to target machine")
         print("  2. Run manage_service.bat install  (as Admin, once)")
         print("  3. Run manage_service.bat start    (starts the service)")
-        print("  4. Double-click NXVNC.exe (tray control panel)")
+        print("  4. Double-click WebVNC.exe (tray control panel)")
         print()
         print("  The service runs at boot without login.")
         print("  The tray app starts on user login for web access.")

@@ -1,7 +1,7 @@
 import RFB from '/novnc/core/rfb.js';
 import { authFetch, checkAuth, logout, getUser, getToken } from './auth.js';
 
-class NXVNCApp {
+class WebVNCApp {
     constructor() {
         this.rfb = null;
         this.connected = false;
@@ -153,14 +153,14 @@ class NXVNCApp {
 
     loadSettings() {
         try {
-            const saved = localStorage.getItem('nxvnc-settings');
+            const saved = localStorage.getItem('webvnc-settings');
             if (saved) return { ...this.defaultSettings(), ...JSON.parse(saved) };
         } catch (e) { /* ignore */ }
         return this.defaultSettings();
     }
 
     saveSettings() {
-        localStorage.setItem('nxvnc-settings', JSON.stringify(this.settings));
+        localStorage.setItem('webvnc-settings', JSON.stringify(this.settings));
     }
 
     applySettingsToUI() {
@@ -393,7 +393,7 @@ class NXVNCApp {
     }
 
     showReconnectHint(settingName) {
-        console.log(`[nxvnc] ${settingName} changed — will apply on next connection`);
+        console.log(`[webvnc] ${settingName} changed — will apply on next connection`);
     }
 
     async connect() {
@@ -467,7 +467,7 @@ class NXVNCApp {
                     this.showSessionCountdown(5 * 60 * 1000);
                 }
 
-                console.log('[nxvnc] Connected');
+                console.log('[webvnc] Connected');
             });
 
             this.rfb.addEventListener('disconnect', (e) => {
@@ -499,7 +499,7 @@ class NXVNCApp {
                 }
 
                 this.rfb = null;
-                console.log('[nxvnc] Disconnected', e.detail.clean ? '(clean)' : '(unexpected)');
+                console.log('[webvnc] Disconnected', e.detail.clean ? '(clean)' : '(unexpected)');
             });
 
             this.rfb.addEventListener('credentialsrequired', () => {
@@ -516,13 +516,13 @@ class NXVNCApp {
             });
 
             this.rfb.addEventListener('desktopname', (e) => {
-                document.title = `NXVNC - ${e.detail.name}`;
+                document.title = `WebVNC - ${e.detail.name}`;
             });
 
         } catch (err) {
             this.clearConnectionTimeout();
             this.showStatus('Connection failed: ' + err.message);
-            console.error('[nxvnc] Connection error:', err);
+            console.error('[webvnc] Connection error:', err);
         }
     }
 
@@ -728,15 +728,15 @@ class NXVNCApp {
     }
 
     updateWatermark() {
-        let watermark = document.getElementById('nxvnc-watermark');
+        let watermark = document.getElementById('webvnc-watermark');
         if (this.freeMode) {
             if (!watermark) {
                 watermark = document.createElement('div');
-                watermark.id = 'nxvnc-watermark';
+                watermark.id = 'webvnc-watermark';
                 watermark.className = 'free-watermark';
                 this.elements.vncContainer.appendChild(watermark);
             }
-            watermark.innerHTML = 'NXVNC Free Edition &mdash; <a href="#" id="watermark-upgrade">Upgrade for unlimited sessions</a>';
+            watermark.innerHTML = 'WebVNC Free Edition &mdash; <a href="#" id="watermark-upgrade">Upgrade for unlimited sessions</a>';
             watermark.classList.remove('hidden');
             const link = document.getElementById('watermark-upgrade');
             if (link) link.addEventListener('click', (e) => { e.preventDefault(); });
@@ -829,7 +829,7 @@ class NXVNCApp {
                 mod.initAdmin(this);
                 this.adminLoaded = true;
             }).catch(err => {
-                console.error('[nxvnc] Failed to load admin module:', err);
+                console.error('[webvnc] Failed to load admin module:', err);
             });
         } else if (this.adminModule) {
             this.adminModule.toggleAdmin();
@@ -1038,4 +1038,4 @@ class NXVNCApp {
     }
 }
 
-const app = new NXVNCApp();
+const app = new WebVNCApp();

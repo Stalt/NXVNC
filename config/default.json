@@ -1,6 +1,6 @@
 {
   "port": 6080,
-  "dbPath": "./data/nxvnc.db",
+  "dbPath": "./data/webvnc.db",
   "jwtSecret": "",
   "jwtExpiry": "8h",
   "masterKey": "",

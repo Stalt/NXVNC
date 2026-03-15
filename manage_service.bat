@@ -2,12 +2,12 @@
 setlocal EnableDelayedExpansion
 
 :: ============================================================================
-::  NXVNC Service Manager
-::  Installs, removes, starts, and stops the NXVNC Windows Service via NSSM.
+::  WebVNC Service Manager
+::  Installs, removes, starts, and stops the WebVNC Windows Service via NSSM.
 :: ============================================================================
 
-set "SERVICE_NAME=NXVNC"
-set "SERVICE_DISPLAY=NXVNC Remote Desktop"
+set "SERVICE_NAME=WebVNC"
+set "SERVICE_DISPLAY=videowares WebVNC"
 set "SERVICE_DESC=Web-based remote desktop client. Provides VNC access through a web browser."
 set "SCRIPT_DIR=%~dp0"
 
@@ -88,16 +88,16 @@ if %errorlevel% equ 0 (
 )
 
 :: Determine application to run
-if exist "%SCRIPT_DIR%NXVNCSvc.exe" (
-    echo Using compiled binary: NXVNCSvc.exe
-    "%NSSM_EXE%" install %SERVICE_NAME% "%SCRIPT_DIR%NXVNCSvc.exe"
+if exist "%SCRIPT_DIR%WebVNCSvc.exe" (
+    echo Using compiled binary: WebVNCSvc.exe
+    "%NSSM_EXE%" install %SERVICE_NAME% "%SCRIPT_DIR%WebVNCSvc.exe"
 ) else (
     echo Using Node.js: node service_runner.js
     :: Find node.exe
     where node.exe >nul 2>&1
     if !errorlevel! neq 0 (
         echo ERROR: node.exe not found in PATH.
-        echo Install Node.js or build NXVNCSvc.exe with pkg.
+        echo Install Node.js or build WebVNCSvc.exe with pkg.
         goto :done
     )
     for /f "delims=" %%i in ('where node.exe') do set "NODE_EXE=%%i"

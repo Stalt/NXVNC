@@ -146,7 +146,7 @@ class WebSocketProxy {
                     const cooldownUntil = this.cooldowns.get(user.id);
                     if (cooldownUntil && Date.now() < cooldownUntil) {
                         const remaining = Math.ceil((cooldownUntil - Date.now()) / 1000);
-                        socket.write(`HTTP/1.1 429 Too Many Requests\r\nX-NXVNC-Cooldown: ${remaining}\r\n\r\n`);
+                        socket.write(`HTTP/1.1 429 Too Many Requests\r\nX-WebVNC-Cooldown: ${remaining}\r\n\r\n`);
                         socket.destroy();
                         return;
                     }
@@ -217,7 +217,7 @@ class WebSocketProxy {
         logAudit(user.id, 'vnc_connect', `${targetHost}:${targetPort}`, null, { role: user.role, freeMode });
 
         // Send metadata to client
-        const meta = { type: 'nxvnc_meta', freeMode };
+        const meta = { type: 'webvnc_meta', freeMode };
         if (isViewer) meta.viewOnly = true;
         if (freeMode) {
             meta.sessionLimitMs = FREE_SESSION_LIMIT_MS;

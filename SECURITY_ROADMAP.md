@@ -1,4 +1,4 @@
-# NXVNC Security Roadmap
+# WebVNC Security Roadmap
 
 ## Phase 1 — Critical (Immediate) ✓
 - [x] 1.1 SSRF Protection — Block private/reserved IPs in WebSocket proxy

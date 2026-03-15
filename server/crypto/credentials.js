@@ -5,8 +5,8 @@ function deriveKey() {
     return crypto.hkdfSync(
         'sha256',
         Buffer.from(config.masterKey, 'hex'),
-        Buffer.from('nxvnc-credential-salt'),
-        Buffer.from('nxvnc-credential-encryption'),
+        Buffer.from('webvnc-credential-salt'),
+        Buffer.from('webvnc-credential-encryption'),
         32
     );
 }

@@ -156,7 +156,7 @@ app.use('/js', express.static(path.join(config.appRoot, 'client', 'js')));
 // Protected main page
 app.get('/', (req, res) => {
     // Check for auth cookie — if missing, redirect to login
-    const token = req.cookies && req.cookies.nxvnc_token;
+    const token = req.cookies && req.cookies.webvnc_token;
     if (!token) {
         return res.redirect('/login');
     }
@@ -245,7 +245,7 @@ app.use((err, req, res, next) => {
 
 // --- Start ---
 server.listen(config.port, () => {
-    console.log(`NXVNC server running on ${config.tlsCert ? 'https' : 'http'}://localhost:${config.port}`);
+    console.log(`WebVNC server running on ${config.tlsCert ? 'https' : 'http'}://localhost:${config.port}`);
     console.log('WebSocket proxy ready for VNC connections');
 });
 

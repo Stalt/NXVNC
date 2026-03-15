@@ -45,7 +45,7 @@ function createSelfSignedCert(privateKeyPem, publicKeyPem, hostname) {
     const notBefore = new Date();
     const notAfter = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
 
-    // Subject/Issuer: CN=hostname, O=NXVNC Self-Signed
+    // Subject/Issuer: CN=hostname, O=WebVNC Self-Signed
     const issuer = buildName(hostname);
     const subject = issuer;
 
@@ -166,7 +166,7 @@ function sha256WithRSA() {
 
 function buildName(cn) {
     return seq(
-        set(seq(oid('2.5.4.10'), utf8String('NXVNC Self-Signed'))),
+        set(seq(oid('2.5.4.10'), utf8String('WebVNC Self-Signed'))),
         set(seq(oid('2.5.4.3'), utf8String(cn)))
     );
 }

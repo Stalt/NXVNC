@@ -16,7 +16,7 @@ function requireLicense(req, res, next) {
 
     if (isInGracePeriod(license)) {
         const daysLeft = Math.ceil((new Date(license.expiresAt).getTime() + 7 * 24 * 60 * 60 * 1000 - Date.now()) / (24 * 60 * 60 * 1000));
-        res.set('X-NXVNC-License-Warning', `License expired. Grace period: ${daysLeft} day(s) remaining.`);
+        res.set('X-WebVNC-License-Warning', `License expired. Grace period: ${daysLeft} day(s) remaining.`);
     }
 
     next();

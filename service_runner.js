@@ -1,5 +1,5 @@
 /**
- * NXVNC Service Runner
+ * WebVNC Service Runner
  * Entry point for the Windows Service (wrapped by NSSM).
  * Handles graceful shutdown on SIGTERM/SIGINT.
  */
@@ -11,7 +11,7 @@ const appDir = process.pkg ? path.dirname(process.execPath) : __dirname;
 process.chdir(appDir);
 
 console.log('='.repeat(60));
-console.log('NXVNC Remote Desktop Service starting');
+console.log('videowares WebVNC Service starting');
 console.log(`  cwd=${process.cwd()}`);
 console.log(`  node=${process.version}`);
 console.log(`  pid=${process.pid}`);

@@ -21,14 +21,14 @@ const config = { ...defaultConfig, ...userConfig };
 // Environment variable overrides
 const envMap = {
     PORT: 'port',
-    NXVNC_DB_PATH: 'dbPath',
-    NXVNC_JWT_SECRET: 'jwtSecret',
-    NXVNC_JWT_EXPIRY: 'jwtExpiry',
-    NXVNC_MASTER_KEY: 'masterKey',
-    NXVNC_TLS_CERT: 'tlsCert',
-    NXVNC_TLS_KEY: 'tlsKey',
-    NXVNC_LOG_LEVEL: 'logLevel',
-    NXVNC_SERVICE_LOG: 'serviceLogPath',
+    WEBVNC_DB_PATH: 'dbPath',
+    WEBVNC_JWT_SECRET: 'jwtSecret',
+    WEBVNC_JWT_EXPIRY: 'jwtExpiry',
+    WEBVNC_MASTER_KEY: 'masterKey',
+    WEBVNC_TLS_CERT: 'tlsCert',
+    WEBVNC_TLS_KEY: 'tlsKey',
+    WEBVNC_LOG_LEVEL: 'logLevel',
+    WEBVNC_SERVICE_LOG: 'serviceLogPath',
 };
 
 for (const [env, key] of Object.entries(envMap)) {
@@ -48,13 +48,13 @@ config.apiRateLimitWindow = parseInt(config.apiRateLimitWindow, 10) || 60000;
 if (!config.jwtSecret) {
     config.jwtSecret = crypto.randomBytes(48).toString('hex');
     console.warn('[config] WARNING: No JWT secret configured. Using random secret (sessions will not persist across restarts).');
-    console.warn('[config] Set NXVNC_JWT_SECRET environment variable for persistence.');
+    console.warn('[config] Set WEBVNC_JWT_SECRET environment variable for persistence.');
 }
 
 if (!config.masterKey) {
     config.masterKey = crypto.randomBytes(32).toString('hex');
     console.warn('[config] WARNING: No master key configured. Using random key (encrypted passwords will be unrecoverable after restart).');
-    console.warn('[config] Set NXVNC_MASTER_KEY environment variable for persistence.');
+    console.warn('[config] Set WEBVNC_MASTER_KEY environment variable for persistence.');
 }
 
 // Resolve paths relative to project root
