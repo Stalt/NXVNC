@@ -8,6 +8,7 @@ const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 
 const config = require('./config');
+const { logger } = require('./logger');
 const { getDb, close } = require('./db/database');
 const { runMigrations } = require('./db/migrations/migrate');
 const { WebSocketProxy } = require('./proxy');
@@ -16,6 +17,7 @@ const { ensureTLS, getCertInfo, monitorCertExpiry } = require('./tls/selfsigned'
 const { requireLicense } = require('./license/middleware');
 const { getLicense, isExpired, isInGracePeriod, isValid } = require('./license/license');
 const { cleanExpiredSessions } = require('./auth/auth');
+const { purgeOldAuditLogs } = require('./audit/audit');
 
 // Route modules
 const authRoutes = require('./routes/auth.routes');
@@ -92,7 +94,7 @@ app.use('/api/v1/users', adminLimiter);
 // --- Public Routes ---
 // Serve login page
 app.get('/login', (req, res) => {
-    res.sendFile(path.join(__dirname, '..', 'client', 'login.html'));
+    res.sendFile(path.join(config.appRoot, 'client', 'login.html'));
 });
 app.get('/login.html', (req, res) => {
     res.redirect('/login');
@@ -100,6 +102,15 @@ app.get('/login.html', (req, res) => {
 
 // Auth routes (login is public, others require auth)
 app.use('/api/v1/auth', authRoutes);
+
+// Health check endpoint (no auth required)
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        uptime: process.uptime(),
+        version: JSON.parse(fs.readFileSync(path.join(config.appRoot, 'package.json'), 'utf8')).version || '1.0.0'
+    });
+});
 
 // CSRF protection on all state-changing API routes (POST/PUT/DELETE)
 const { csrfProtect } = require('./auth/middleware');
@@ -136,11 +147,11 @@ app.get('/api/v1/license/status', requireAuth, (req, res) => {
 });
 
 // Serve noVNC library files (ESM source)
-app.use('/novnc', express.static(path.join(__dirname, '..', 'node_modules', '@novnc', 'novnc')));
+app.use('/novnc', express.static(path.join(config.appRoot, 'node_modules', '@novnc', 'novnc')));
 
 // Serve static client files — protected by auth check for index.html
-app.use('/css', express.static(path.join(__dirname, '..', 'client', 'css')));
-app.use('/js', express.static(path.join(__dirname, '..', 'client', 'js')));
+app.use('/css', express.static(path.join(config.appRoot, 'client', 'css')));
+app.use('/js', express.static(path.join(config.appRoot, 'client', 'js')));
 
 // Protected main page
 app.get('/', (req, res) => {
@@ -150,7 +161,7 @@ app.get('/', (req, res) => {
         return res.redirect('/login');
     }
     // Token validity is checked client-side via /api/v1/auth/me
-    res.sendFile(path.join(__dirname, '..', 'client', 'index.html'));
+    res.sendFile(path.join(config.appRoot, 'client', 'index.html'));
 });
 
 // --- Server Creation (always HTTPS) ---
@@ -187,6 +198,27 @@ setInterval(() => {
         console.error('[cleanup] Session cleanup error:', e.message);
     }
 }, 5 * 60 * 1000); // Every 5 minutes
+
+// Audit log retention - purge old records daily
+setInterval(() => {
+    try {
+        const db = getDb();
+        const row = db.prepare("SELECT value FROM settings WHERE key = 'auditRetentionDays'").get();
+        const days = parseInt(row?.value) || 90;
+        const deleted = purgeOldAuditLogs(days);
+        if (deleted > 0) logger.info('cleanup', `Purged ${deleted} audit records older than ${days} days`);
+    } catch (e) {
+        logger.error('cleanup', 'Audit purge error:', e.message);
+    }
+}, 24 * 60 * 60 * 1000);
+
+// Run initial audit purge
+try {
+    const db = getDb();
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'auditRetentionDays'").get();
+    const days = parseInt(row?.value) || 90;
+    purgeOldAuditLogs(days);
+} catch (e) { /* ignore startup purge errors */ }
 
 // --- License Check ---
 const license = getLicense();

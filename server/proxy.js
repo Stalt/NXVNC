@@ -2,6 +2,7 @@ const WebSocket = require('ws');
 const net = require('net');
 const url = require('url');
 const dns = require('dns');
+const config = require('./config');
 const { verifyWsToken } = require('./auth/auth');
 const { logAudit } = require('./audit/audit');
 const { checkLimits, isFreeMode, FREE_SESSION_LIMIT_MS, FREE_COOLDOWN_MS } = require('./license/license');
@@ -59,15 +60,17 @@ async function validateTarget(host, port) {
         throw 'Invalid hostname format';
     }
 
-    // Block known dangerous hostnames
-    const lowerHost = host.toLowerCase();
-    if (lowerHost === 'localhost' || lowerHost.endsWith('.local') || lowerHost.endsWith('.internal')) {
-        throw 'Blocked hostname';
+    // Block known dangerous hostnames (unless private IPs are allowed)
+    if (!config.allowPrivateIPs) {
+        const lowerHost = host.toLowerCase();
+        if (lowerHost === 'localhost' || lowerHost.endsWith('.local') || lowerHost.endsWith('.internal')) {
+            throw 'Blocked hostname';
+        }
     }
 
     // If host is already an IP, check it directly
     if (net.isIP(host)) {
-        if (isPrivateIP(host)) {
+        if (!config.allowPrivateIPs && isPrivateIP(host)) {
             throw 'Connection to private/reserved IP is not allowed';
         }
         return;
@@ -81,7 +84,7 @@ async function validateTarget(host, port) {
         throw 'DNS resolution failed';
     }
 
-    if (isPrivateIP(result.address)) {
+    if (!config.allowPrivateIPs && isPrivateIP(result.address)) {
         throw 'Hostname resolves to a private/reserved IP';
     }
 }

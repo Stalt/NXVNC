@@ -15,6 +15,18 @@
   "author": "",
   "license": "MIT",
   "description": "Web-based remote desktop client (VNC) running in Chromium browsers with no plugins",
+  "pkg": {
+    "assets": [
+      "config/**/*",
+      "server/**/*.sql",
+      "server/**/*.json",
+      "client/**/*",
+      "node_modules/@novnc/novnc/lib/**/*",
+      "node_modules/better-sqlite3/**/*.node",
+      "node_modules/bcrypt/**/*.node"
+    ],
+    "targets": ["node22-win-x64"]
+  },
   "dependencies": {
     "@novnc/novnc": "github:novnc/noVNC",
     "bcrypt": "^6.0.0",

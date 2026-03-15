@@ -2,12 +2,16 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+// When compiled with pkg, __dirname is inside the virtual snapshot.
+// Use the real exe directory for disk-based file access.
+const appRoot = process.pkg ? path.dirname(process.execPath) : path.join(__dirname, '..');
+
 const defaultConfig = JSON.parse(
-    fs.readFileSync(path.join(__dirname, '..', 'config', 'default.json'), 'utf8')
+    fs.readFileSync(path.join(appRoot, 'config', 'default.json'), 'utf8')
 );
 
 let userConfig = {};
-const userConfigPath = path.join(__dirname, '..', 'config.json');
+const userConfigPath = path.join(appRoot, 'config.json');
 if (fs.existsSync(userConfigPath)) {
     userConfig = JSON.parse(fs.readFileSync(userConfigPath, 'utf8'));
 }
@@ -23,6 +27,8 @@ const envMap = {
     NXVNC_MASTER_KEY: 'masterKey',
     NXVNC_TLS_CERT: 'tlsCert',
     NXVNC_TLS_KEY: 'tlsKey',
+    NXVNC_LOG_LEVEL: 'logLevel',
+    NXVNC_SERVICE_LOG: 'serviceLogPath',
 };
 
 for (const [env, key] of Object.entries(envMap)) {
@@ -51,9 +57,16 @@ if (!config.masterKey) {
     console.warn('[config] Set NXVNC_MASTER_KEY environment variable for persistence.');
 }
 
-// Resolve dbPath relative to project root
+// Resolve paths relative to project root
 if (!path.isAbsolute(config.dbPath)) {
-    config.dbPath = path.join(__dirname, '..', config.dbPath);
+    config.dbPath = path.join(appRoot, config.dbPath);
 }
+
+if (!path.isAbsolute(config.serviceLogPath)) {
+    config.serviceLogPath = path.join(appRoot, config.serviceLogPath);
+}
+
+// Export appRoot for other modules that need disk-based paths
+config.appRoot = appRoot;
 
 module.exports = config;

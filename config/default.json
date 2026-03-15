@@ -10,5 +10,9 @@
   "rateLimitMax": 10,
   "apiRateLimitMax": 100,
   "apiRateLimitWindow": 60000,
-  "trustProxy": false
+  "trustProxy": false,
+  "allowPrivateIPs": true,
+  "serviceLogPath": "./logs/service.log",
+  "logLevel": "info",
+  "auditRetentionDays": 90
 }

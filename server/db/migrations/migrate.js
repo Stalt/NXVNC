@@ -19,7 +19,8 @@ function runMigrations() {
         db.prepare('SELECT name FROM _migrations').all().map(r => r.name)
     );
 
-    const migrationsDir = __dirname;
+    const config = require('../../config');
+    const migrationsDir = path.join(config.appRoot, 'server', 'db', 'migrations');
     const files = fs.readdirSync(migrationsDir)
         .filter(f => f.endsWith('.sql'))
         .sort();

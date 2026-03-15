@@ -2,7 +2,8 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const DEFAULT_TLS_DIR = path.join(__dirname, '..', '..', 'data', 'tls');
+const config = require('../config');
+const DEFAULT_TLS_DIR = path.join(config.appRoot, 'data', 'tls');
 const CERT_FILE = 'cert.pem';
 const KEY_FILE = 'key.pem';
 

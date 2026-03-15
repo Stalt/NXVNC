@@ -53,4 +53,24 @@ function getAuditLog({ page = 1, limit = 50, action, userId, from, to } = {}) {
     return { rows, total, page, limit, pages: Math.ceil(total / limit) };
 }
 
-module.exports = { logAudit, getAuditLog };
+function purgeOldAuditLogs(retentionDays) {
+    const db = getDb();
+    const result = db.prepare("DELETE FROM audit_log WHERE created_at < datetime('now', '-' || ? || ' days')").run(retentionDays);
+    return result.changes;
+}
+
+function getAuditStats() {
+    const db = getDb();
+    const stats = db.prepare("SELECT COUNT(*) as total, MIN(created_at) as oldest, MAX(created_at) as newest FROM audit_log").get();
+    const config = require('../config');
+    let dbSizeBytes = 0;
+    try { dbSizeBytes = require('fs').statSync(config.dbPath).size; } catch(e) {}
+    return {
+        totalRecords: stats.total,
+        oldestEntry: stats.oldest,
+        newestEntry: stats.newest,
+        dbSizeBytes
+    };
+}
+
+module.exports = { logAudit, getAuditLog, purgeOldAuditLogs, getAuditStats };

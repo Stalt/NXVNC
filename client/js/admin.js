@@ -19,6 +19,7 @@ export function toggleAdmin() {
         loadAllConnections();
         loadLicense();
         loadAuditLog();
+        loadLogging();
     }
 }
 
@@ -40,6 +41,7 @@ function createAdminPanel() {
                 <button class="admin-tab" data-tab="connections">Connections</button>
                 <button class="admin-tab" data-tab="license">License</button>
                 <button class="admin-tab" data-tab="audit">Audit Log</button>
+                <button class="admin-tab" data-tab="logging">Logging</button>
             </div>
             <div class="admin-body">
                 <!-- Users Tab -->
@@ -89,6 +91,42 @@ function createAdminPanel() {
                     <div id="audit-table-container"></div>
                     <div class="admin-pagination" id="audit-pagination"></div>
                 </div>
+                <!-- Logging Tab -->
+                <div class="admin-tab-content" id="tab-logging">
+                    <div class="admin-toolbar">
+                        <button class="btn btn-secondary" id="btn-refresh-logging">Refresh</button>
+                    </div>
+                    <div id="logging-stats-container"></div>
+                    <div class="logging-settings" style="margin-top:20px">
+                        <h3 style="color:#e0e0e0;margin-bottom:12px;font-size:15px;">Log Settings</h3>
+                        <div class="form-group">
+                            <label for="log-retention-days">Audit Log Retention</label>
+                            <select id="log-retention-days" class="form-control">
+                                <option value="7">7 days</option>
+                                <option value="30">30 days</option>
+                                <option value="60">60 days</option>
+                                <option value="90">90 days</option>
+                                <option value="180">180 days</option>
+                                <option value="365">365 days</option>
+                                <option value="0">Never (keep all)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="log-level-select">Server Log Level</label>
+                            <select id="log-level-select" class="form-control">
+                                <option value="debug">Debug</option>
+                                <option value="info">Info</option>
+                                <option value="warn">Warning</option>
+                                <option value="error">Error only</option>
+                            </select>
+                        </div>
+                        <div style="display:flex;gap:8px;margin-top:12px">
+                            <button class="btn btn-primary" id="btn-save-log-settings">Save Settings</button>
+                            <button class="btn btn-secondary" id="btn-purge-audit">Purge Old Records Now</button>
+                            <button class="btn btn-secondary" id="btn-download-service-log">Download Service Log</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     `;
@@ -108,6 +146,7 @@ function bindAdminEvents() {
             document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active'));
             tab.classList.add('active');
             document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+            if (tab.dataset.tab === 'logging') loadLogging();
         });
     });
 
@@ -116,6 +155,52 @@ function bindAdminEvents() {
     document.getElementById('btn-upload-license').addEventListener('click', uploadLicense);
     document.getElementById('btn-refresh-audit').addEventListener('click', () => loadAuditLog());
     document.getElementById('audit-filter-action').addEventListener('change', () => loadAuditLog());
+
+    // Logging tab handlers
+    document.getElementById('btn-refresh-logging')?.addEventListener('click', loadLogging);
+
+    document.getElementById('btn-save-log-settings')?.addEventListener('click', async () => {
+        const retentionDays = document.getElementById('log-retention-days').value;
+        const logLevel = document.getElementById('log-level-select').value;
+
+        try {
+            await authFetch('/api/v1/settings/auditRetentionDays', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ value: retentionDays })
+            });
+
+            await authFetch('/api/v1/settings/logLevel', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ value: logLevel })
+            });
+
+            showToast('Log settings saved', 'success');
+            loadLogging();
+        } catch (e) {
+            showToast('Failed to save settings', 'error');
+        }
+    });
+
+    document.getElementById('btn-purge-audit')?.addEventListener('click', async () => {
+        if (!confirm('Purge audit records older than the retention period?')) return;
+
+        try {
+            const res = await authFetch('/api/v1/settings/logging/purge', {
+                method: 'POST'
+            });
+            const data = await res.json();
+            showToast(`Purged ${data.deleted} records (retention: ${data.retentionDays} days)`, 'success');
+            loadLogging();
+        } catch (e) {
+            showToast('Failed to purge records', 'error');
+        }
+    });
+
+    document.getElementById('btn-download-service-log')?.addEventListener('click', () => {
+        window.open('/api/v1/settings/logging/service-log', '_blank');
+    });
 
     // Modal form handlers
     document.getElementById('add-user-form').addEventListener('submit', async (e) => {
@@ -584,6 +669,46 @@ async function loadAuditLog(page = 1) {
 }
 
 window._auditPage = (p) => loadAuditLog(p);
+
+// --- Logging ---
+
+async function loadLogging() {
+    const container = document.getElementById('logging-stats-container');
+    if (!container) return;
+
+    try {
+        const res = await authFetch('/api/v1/settings/logging/stats');
+        if (!res.ok) throw new Error('Failed to load logging stats');
+        const data = await res.json();
+
+        const formatBytes = (bytes) => {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        };
+
+        const formatDate = (d) => d ? new Date(d).toLocaleString() : 'N/A';
+
+        container.innerHTML = `
+            <div class="license-card">
+                <div class="license-row"><span class="license-label">Total Audit Records</span><span class="license-value">${data.auditStats.totalRecords.toLocaleString()}</span></div>
+                <div class="license-row"><span class="license-label">Oldest Entry</span><span class="license-value">${formatDate(data.auditStats.oldestEntry)}</span></div>
+                <div class="license-row"><span class="license-label">Newest Entry</span><span class="license-value">${formatDate(data.auditStats.newestEntry)}</span></div>
+                <div class="license-row"><span class="license-label">Database Size</span><span class="license-value">${formatBytes(data.auditStats.dbSizeBytes)}</span></div>
+                <div class="license-row"><span class="license-label">Current Log Level</span><span class="license-value">${data.logLevel}</span></div>
+                <div class="license-row"><span class="license-label">Retention Policy</span><span class="license-value">${data.auditRetentionDays === 0 ? 'Keep all records' : data.auditRetentionDays + ' days'}</span></div>
+            </div>
+        `;
+
+        // Set current values in dropdowns
+        const retentionSelect = document.getElementById('log-retention-days');
+        const levelSelect = document.getElementById('log-level-select');
+        if (retentionSelect) retentionSelect.value = String(data.auditRetentionDays);
+        if (levelSelect) levelSelect.value = data.logLevel;
+    } catch (e) {
+        container.innerHTML = '<p style="color:#ff6b6b">Failed to load logging stats</p>';
+    }
+}
 
 function esc(str) {
     if (!str) return '';
