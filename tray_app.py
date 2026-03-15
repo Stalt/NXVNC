@@ -351,15 +351,20 @@ class NXVNCTray:
             return f"{SERVICE_DISPLAY} — Stopped"
 
     def _update_icon(self):
-        if self._icon:
+        if not self._icon:
+            return
+        try:
+            color = self._determine_color()
+            tooltip = self._determine_tooltip()
+            self._icon.icon = _create_icon(color)
+            self._icon.title = tooltip[:127]
+            # Force Windows notification area to refresh the tooltip
             try:
-                color = self._determine_color()
-                self._icon.icon = _create_icon(color)
-                tooltip = self._determine_tooltip()
-                # pystray on Windows: title must be <= 127 chars
-                self._icon.title = tooltip[:127]
-            except Exception as e:
-                logger.debug("Icon update error: %s", e)
+                self._icon._update_title()
+            except Exception:
+                pass
+        except Exception as e:
+            logger.debug("Icon update error: %s", e)
 
     # ── Menu ───────────────────────────────────────────────────────────────
 
@@ -384,11 +389,17 @@ class NXVNCTray:
 
     def run(self):
         """Create the tray icon and start polling."""
-        icon_image = _create_icon("gray")
+        # Do initial status check before creating icon
+        self._status = _query_service_status()
+        self._healthy = _check_health()
+        initial_color = self._determine_color()
+        initial_tooltip = self._determine_tooltip()
+
+        icon_image = _create_icon(initial_color)
         self._icon = pystray.Icon(
             SERVICE_NAME,
             icon_image,
-            f"{SERVICE_DISPLAY} — Checking...",
+            initial_tooltip,
             menu=self._build_menu(),
         )
 
